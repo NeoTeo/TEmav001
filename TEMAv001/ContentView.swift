@@ -45,7 +45,7 @@ struct ContentView: View {
     }
 }
 
-let bootROM: [CPU.Ops] = [
+let bootROM: [CPU.OpCode] = [
     .pop, .push
 ]
     
@@ -53,9 +53,10 @@ let bootROM: [CPU.Ops] = [
 /// Central Processing Unit
 class CPU {
     
-    enum Ops: UInt16 {
-    case pop
-    case push
+    enum OpCode: UInt16 {
+        case nop
+        case pop
+        case push
     }
     
     /// Parameter stack, 2 bytes * 256 = 512 bytes, signed
@@ -66,16 +67,58 @@ class CPU {
     var rStack = [UInt16](repeating: 0, count: 2^8)
     var rStackCounter = 0
     
+    var pc: UInt16 = 0
+    
+    /// Interconnects
+    var mmu: MMU!
+        
+    func reset() {
+        pc = 0
+        pStackCounter = 0
+        rStackCounter = 0
+    }
+    
+    func clockTick() {
+        /// halt at 0xFFFF
+        guard pc < 65535 else { return }
+        
+        let op = OpCode(rawValue: mmu.read(address: pc))
+
+        switch op {
+        case .pop:
+            print("pop value")
+        case .push:
+            print("push value")
+        case .nop:
+            break
+        default:
+            print("unimplemented opcode")
+        }
+        pc += 1
+    }
 }
 
-/// Random Access Memory
-class RAM {
+/// Memory Management Unit
+class MMU {
     /// 65536 bytes of memory
-    var bank = [UInt16](repeating: 0, count: 2^16)
+    var bank = [UInt16](repeating: 0, count: 65536)
+    
+    func debugInit() {
+        write(value: CPU.OpCode.push.rawValue, address: 0)
+        write(value: CPU.OpCode.push.rawValue, address: 1)
+        write(value: CPU.OpCode.pop.rawValue, address: 2)
+    }
+    
+    func write(value: UInt16, address: UInt16) {
+        bank[Int(address)] = value
+    }
+    
+    func read(address: UInt16) -> UInt16 {
+        return bank[Int(address)]
+    }
 }
 
 /// Pixel processing unit
-
 class PPU : ObservableObject {
     public var pixelBuffer: [UInt8]
     private let bytesPerRow = winWidth
@@ -164,12 +207,20 @@ class System {
     static public let displayHResolution = 640
     static public let displayVResolution = 480
     
-    var cpu = CPU()
-    var ram = RAM()
-    var ppu = PPU(width: displayHResolution, height: displayVResolution)
+    var cpu: CPU
+    var mmu: MMU
+    var ppu : PPU
     
     let cycleQ = DispatchQueue.global(qos: .userInitiated)
-    
+   
+    init() {
+        cpu = CPU()
+        mmu = MMU()
+        ppu = PPU(width: System.displayHResolution, height: System.displayVResolution)
+        
+        // connect the components
+        cpu.mmu = mmu
+    }
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
     let emuAllowanceNanos: Double = 1_000_000_000 / 60
         
@@ -221,11 +272,15 @@ class System {
         }
 
         ppu.pixelBuffer = buf
+        
+        mmu.debugInit()
+        cpu.reset()
     }
         
     func runCycle() {
-        print("run cycle \(Date.now)")
+//        print("run cycle \(Date.now)")
         /// step through ram and execute opcodes
+        cpu.clockTick()
         /// update the display
         
             ppu.refresh()
