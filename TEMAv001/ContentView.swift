@@ -27,6 +27,9 @@ struct ContentView: View {
 
         VStack {
             Text("updated \(Date.now)")
+                .onTapGesture {
+                    system.debugTest()
+                }
         if ppu.display != nil {
             let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
             Canvas { context, size in
@@ -74,7 +77,7 @@ class RAM {
 /// Pixel processing unit
 
 class PPU : ObservableObject {
-    private var pixelBuffer:[UInt8]
+    public var pixelBuffer: [UInt8]
     private let bytesPerRow = winWidth
     private let bitsPerPixel = 8
     
@@ -158,14 +161,67 @@ class PPU : ObservableObject {
 
 class System {
     
+    static public let displayHResolution = 640
+    static public let displayVResolution = 480
+    
     var cpu = CPU()
     var ram = RAM()
-    var ppu = PPU(width: 640, height: 480)
+    var ppu = PPU(width: displayHResolution, height: displayVResolution)
     
     let cycleQ = DispatchQueue.global(qos: .userInitiated)
     
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
     let emuAllowanceNanos: Double = 1_000_000_000 / 60
+        
+    func debugTest() {
+        var buf = [UInt8](repeating: 0, count: System.displayHResolution * System.displayVResolution)
+        
+        let o: [UInt8] = [
+            0, 0, 2, 2, 2, 2, 0, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 0, 2, 2, 2, 2, 0, 0
+        ]
+        
+        let k: [UInt8] = [
+            0, 2, 2, 0, 0, 0, 0, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 2, 2, 2, 0,
+            0, 2, 2, 2, 2, 2, 0, 0,
+            0, 2, 2, 2, 2, 2, 0, 0,
+            0, 2, 2, 0, 2, 2, 0, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0
+        ]
+
+        var y = 10
+        var xpos = 50
+
+        for r in 0 ..< 8 {
+            let yoff = y * System.displayHResolution
+            for c in 0 ..< 8 {
+                buf[yoff+xpos+c] = o[r*8+c]
+            }
+            y += 1
+        }
+
+        xpos += 8
+        y = 10
+        
+        for r in 0 ..< 8 {
+            let yoff = y * System.displayHResolution
+            for c in 0 ..< 8 {
+                buf[yoff+xpos+c] = k[r*8+c]
+            }
+            y += 1
+        }
+
+        ppu.pixelBuffer = buf
+    }
         
     func runCycle() {
         print("run cycle \(Date.now)")
