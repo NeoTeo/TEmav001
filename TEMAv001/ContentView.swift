@@ -57,6 +57,8 @@ class CPU {
         case nop
         case pop
         case push
+        case add
+        case mul
     }
     
     /// Parameter stack, 2 bytes * 256 = 512 bytes, signed
@@ -85,14 +87,29 @@ class CPU {
         let op = OpCode(rawValue: mmu.read(address: pc))
 
         switch op {
-        case .pop:
-            print("pop value")
-        case .push:
-            print("push value")
         case .nop:
             break
+
+        case .pop:
+            let val = pStack.popLast()
+            print("popped value \(String(describing: val))")
+            
+        case .push:
+            /// next value in memory assumed to be the value to push to pstack
+            pc += 1
+            let val = mmu.read(address: pc)
+            pStack.append(Int16(val))
+            
+        case .add:
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            pStack.append(a+b)
+            
+        case .mul:
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            pStack.append( a * b )
+
         default:
-            print("unimplemented opcode")
+            print("unimplemented opcode: \(String(describing: op))")
         }
         pc += 1
     }
@@ -104,9 +121,25 @@ class MMU {
     var bank = [UInt16](repeating: 0, count: 65536)
     
     func debugInit() {
-        write(value: CPU.OpCode.push.rawValue, address: 0)
-        write(value: CPU.OpCode.push.rawValue, address: 1)
-        write(value: CPU.OpCode.pop.rawValue, address: 2)
+        var addr: UInt16 = 0
+        
+        write(value: CPU.OpCode.push.rawValue, address: addr)
+        addr += 1
+        write(value: 4, address: addr)
+        addr += 1
+        write(value: CPU.OpCode.push.rawValue, address: addr)
+        addr += 1
+        write(value: 3, address: addr)
+        addr += 1
+        write(value: CPU.OpCode.add.rawValue, address: addr)
+        addr += 1
+        write(value: CPU.OpCode.push.rawValue, address: addr)
+        addr += 1
+        write(value: 6, address: addr)
+        addr += 1
+        write(value: CPU.OpCode.mul.rawValue, address: addr)
+        addr += 1
+        write(value: CPU.OpCode.pop.rawValue, address: addr)
     }
     
     func write(value: UInt16, address: UInt16) {
