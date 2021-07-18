@@ -72,6 +72,7 @@ class RAM {
 }
 
 /// Pixel processing unit
+
 class PPU : ObservableObject {
     private var pixelBuffer:[UInt8]
     private let bytesPerRow = winWidth
@@ -107,20 +108,21 @@ class PPU : ObservableObject {
     func refresh() {
 
         imageDataProvider = CGDataProvider(data: Data(pixelBuffer) as NSData)
-        
-        display = CGImage(width: horizontalPixels,
-                          height: verticalPixels,
+        DispatchQueue.main.async {
+            self.display = CGImage(width: self.horizontalPixels,
+                              height: self.verticalPixels,
                           bitsPerComponent: 8,
-                          bitsPerPixel: bitsPerPixel,
-                          bytesPerRow: bytesPerRow,
-                          space: colorSpace!,
+                              bitsPerPixel: self.bitsPerPixel,
+                              bytesPerRow: self.bytesPerRow,
+                              space: self.colorSpace!,
                           bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
-                          provider: imageDataProvider!,
+                              provider: self.imageDataProvider!,
                           decode: nil,
                           shouldInterpolate: false,
                           intent: CGColorRenderingIntent.defaultIntent)
+            if self.display == nil { fatalError("display is nil") }
+        }
         
-        if display == nil { fatalError("display is nil") }
     }
 
 //    func refresh() -> CGImage {
@@ -169,13 +171,16 @@ class System {
         print("run cycle \(Date.now)")
         /// step through ram and execute opcodes
         /// update the display
-        ppu.refresh()
+        
+            ppu.refresh()
+        
         
         let nextCycle = DispatchTime.now() + .nanoseconds(Int(emuAllowanceNanos))
-                
+        
         cycleQ.asyncAfter(deadline: nextCycle, execute: runCycle)
     }
 }
+
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
