@@ -53,7 +53,8 @@ let bootROM: [CPU.OpCode] = [
 /// Central Processing Unit
 class CPU {
     
-    enum OpCode: Int8 {
+    
+    enum OpCode: UInt8 {
         case nop
         // stack operations
         case pop
@@ -72,12 +73,12 @@ class CPU {
         case jot    // jump on true condition
     }
     
-    /// Parameter stack, 256 bytes, signed
-    var pStack = [Int8](repeating: 0, count: 256)
+    /// Parameter stack, 256 bytes, unsigned
+    var pStack = [UInt8](repeating: 0, count: 256)
     var pStackCounter = 0
     
     /// Return stack  256 bytes, unsigned
-    var rStack = [Int8](repeating: 0, count: 256)
+    var rStack = [UInt8](repeating: 0, count: 256)
     var rStackCounter = 0
     
     var pc: UInt16 = 0
@@ -95,6 +96,10 @@ class CPU {
         /// halt at 0xFFFF
         guard pc < 65535 else { return }
         
+        /// since we're limiting the number of opcodes to 32 we are only using the bottom 5 bits.
+        /// We can use the top three as flags for byte or short ops, copy rather than pop, and return from jump.
+        /// This is where we would mask out the bottom 5 with an & 0x1F or, if we've made opcodes
+        /// for both byte and shorts, the bottom 6 with ^ 0x3F
         let op = OpCode(rawValue: mmu.read(address: pc))
 
         switch op {
@@ -132,15 +137,15 @@ class CPU {
         /// logic operations
         case .equ:
             guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
-            pStack.append( a == b ? -1 : 0 )
+            pStack.append( a == b ? 0xFF : 0 )
             
         case .grt:
             guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
-            pStack.append( a > b ? -1 : 0 )
+            pStack.append( a > b ? 0xFF : 0 )
             
         case .neg:
             guard let a = pStack.popLast() else { break }
-            pStack.append( a == 0 ? -1 : 0 )
+            pStack.append( a == 0 ? 0xFF : 0 )
             
         case .jmp:
             guard let a = pStack.popLast() else { break }
@@ -166,7 +171,7 @@ class CPU {
 /// Memory Management Unit
 class MMU {
     /// 65536 bytes of memory
-    var bank = [Int8](repeating: 0, count: 65536)
+    var bank = [UInt8](repeating: 0, count: 65536)
     
     func debugInit() {
         var addr: UInt16 = 0
@@ -190,11 +195,11 @@ class MMU {
         write(value: CPU.OpCode.pop.rawValue, address: addr)
     }
     
-    func write(value: Int8, address: UInt16) {
+    func write(value: UInt8, address: UInt16) {
         bank[Int(address)] = value
     }
     
-    func read(address: UInt16) -> Int8 {
+    func read(address: UInt16) -> UInt8 {
         return bank[Int(address)]
     }
 }
