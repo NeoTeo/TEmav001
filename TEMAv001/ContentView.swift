@@ -46,27 +46,38 @@ struct ContentView: View {
 }
 
 let bootROM: [CPU.OpCode] = [
-    .pop, .push
+    .pop, .lit //,.bla, .bla
 ]
     
 
 /// Central Processing Unit
 class CPU {
     
-    enum OpCode: UInt16 {
+    enum OpCode: Int8 {
         case nop
+        // stack operations
         case pop
-        case push
+        case lit
+        // arithmetical operations
         case add
+        case sub
         case mul
+        case div
+        
+        // logic operations
+        case equ
+        case grt
+        case neg    // negate the top of the stack
+        case jmp    // jump unconditinally
+        case jot    // jump on true condition
     }
     
-    /// Parameter stack, 2 bytes * 256 = 512 bytes, signed
-    var pStack = [Int16](repeating: 0, count: 2^8)
+    /// Parameter stack, 256 bytes, signed
+    var pStack = [Int8](repeating: 0, count: 256)
     var pStackCounter = 0
     
-    /// Return stack  2 bytes * 256 = 512 bytes, unsigned
-    var rStack = [UInt16](repeating: 0, count: 2^8)
+    /// Return stack  256 bytes, unsigned
+    var rStack = [Int8](repeating: 0, count: 256)
     var rStackCounter = 0
     
     var pc: UInt16 = 0
@@ -90,23 +101,60 @@ class CPU {
         case .nop:
             break
 
+        /// stack operations
         case .pop:
             let val = pStack.popLast()
             print("popped value \(String(describing: val))")
             
-        case .push:
+        case .lit:
             /// next value in memory assumed to be the value to push to pstack
             pc += 1
             let val = mmu.read(address: pc)
-            pStack.append(Int16(val))
+            pStack.append(val)
             
+        /// arithmetic operations
         case .add:
             guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
-            pStack.append(a+b)
+            pStack.append( a + b )
             
+        case .sub:
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            pStack.append( a - b )
+
         case .mul:
             guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
             pStack.append( a * b )
+
+        case .div:
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            pStack.append( a / b )
+
+        /// logic operations
+        case .equ:
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            pStack.append( a == b ? -1 : 0 )
+            
+        case .grt:
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            pStack.append( a > b ? -1 : 0 )
+            
+        case .neg:
+            guard let a = pStack.popLast() else { break }
+            pStack.append( a == 0 ? -1 : 0 )
+            
+        case .jmp:
+            guard let a = pStack.popLast() else { break }
+            /// relative jump is default
+            let newaddr = UInt16(Int(pc) + Int(a))
+            rStack.append( a )
+            pc = newaddr
+            
+        case .jot:
+            guard let a = pStack.popLast(), a != 0 else { break }
+            /// relative jump is default
+            let newaddr = UInt16(Int(pc) + Int(a))
+            rStack.append( a )
+            pc = newaddr
 
         default:
             print("unimplemented opcode: \(String(describing: op))")
@@ -118,22 +166,22 @@ class CPU {
 /// Memory Management Unit
 class MMU {
     /// 65536 bytes of memory
-    var bank = [UInt16](repeating: 0, count: 65536)
+    var bank = [Int8](repeating: 0, count: 65536)
     
     func debugInit() {
         var addr: UInt16 = 0
         
-        write(value: CPU.OpCode.push.rawValue, address: addr)
+        write(value: CPU.OpCode.lit.rawValue, address: addr)
         addr += 1
         write(value: 4, address: addr)
         addr += 1
-        write(value: CPU.OpCode.push.rawValue, address: addr)
+        write(value: CPU.OpCode.lit.rawValue, address: addr)
         addr += 1
         write(value: 3, address: addr)
         addr += 1
         write(value: CPU.OpCode.add.rawValue, address: addr)
         addr += 1
-        write(value: CPU.OpCode.push.rawValue, address: addr)
+        write(value: CPU.OpCode.lit.rawValue, address: addr)
         addr += 1
         write(value: 6, address: addr)
         addr += 1
@@ -142,11 +190,11 @@ class MMU {
         write(value: CPU.OpCode.pop.rawValue, address: addr)
     }
     
-    func write(value: UInt16, address: UInt16) {
+    func write(value: Int8, address: UInt16) {
         bank[Int(address)] = value
     }
     
-    func read(address: UInt16) -> UInt16 {
+    func read(address: UInt16) -> Int8 {
         return bank[Int(address)]
     }
 }
