@@ -64,6 +64,10 @@ class CPU {
         // stack operations
         case pop
         case lit
+        case dup
+        case ovr
+        case rot
+        
         // arithmetical operations
         case add
         case sub
@@ -78,13 +82,16 @@ class CPU {
         case jot    // jump on true condition
     }
     
+    enum CPUError: Error {
+    case missingParameters
+    }
     /// Parameter stack, 256 bytes, unsigned
-    var pStack = [UInt8](repeating: 0, count: 256)
-    var pStackCounter = 0
+    var pStack = [UInt8]()//(repeating: 0, count: 256)
+//    var pStackCounter = 0
     
     /// Return stack  256 bytes, unsigned
-    var rStack = [UInt8](repeating: 0, count: 256)
-    var rStackCounter = 0
+    var rStack = [UInt8]()//(repeating: 0, count: 256)
+//    var rStackCounter = 0
     
     var pc: UInt16 = 0
     
@@ -93,11 +100,11 @@ class CPU {
         
     func reset() {
         pc = 0
-        pStackCounter = 0
-        rStackCounter = 0
+//        pStackCounter = 0
+//        rStackCounter = 0
     }
     
-    func clockTick() {
+    func clockTick() throws {
         /// halt at 0xFFFF
         guard pc < 65535 else { return }
         
@@ -109,67 +116,93 @@ class CPU {
 
         switch op {
         case .nop:
+            pc += 1
             break
 
         /// stack operations
         case .pop:
             let val = pStack.popLast()
             print("popped value \(String(describing: val))")
+            pc += 1
             
         case .lit:
             /// next value in memory assumed to be the value to push to pstack
             pc += 1
             let val = mmu.read(address: pc)
             pStack.append(val)
+            pc += 1
+            
+        case .dup:
+            guard let a = pStack.last else { throw CPUError.missingParameters }
+            pStack.append(a)
+            pc += 1
+            
+        case .ovr:
+            guard pStack.count > 1 else { throw CPUError.missingParameters }
+            let a = pStack[pStack.count - 2]
+            pStack.append(a)
+            pc += 1
+            
+        case .rot:
+            guard pStack.count > 2 else { throw CPUError.missingParameters }
+            let a = pStack.remove(at: pStack.count - 3)
+            pStack.append(a)
+            pc += 1
             
         /// arithmetic operations
         case .add:
-            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { throw CPUError.missingParameters }
             pStack.append( a + b )
+            pc += 1
             
         case .sub:
-            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { throw CPUError.missingParameters }
             pStack.append( a - b )
-
+            pc += 1
+            
         case .mul:
-            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { throw CPUError.missingParameters }
             pStack.append( a * b )
-
+            pc += 1
+            
         case .div:
-            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { throw CPUError.missingParameters }
             pStack.append( a / b )
-
+            pc += 1
+            
         /// logic operations
         case .equ:
-            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { throw CPUError.missingParameters }
             pStack.append( a == b ? 0xFF : 0 )
+            pc += 1
             
         case .grt:
-            guard let b = pStack.popLast(), let a = pStack.popLast() else { break }
+            guard let b = pStack.popLast(), let a = pStack.popLast() else { throw CPUError.missingParameters }
             pStack.append( a > b ? 0xFF : 0 )
+            pc += 1
             
         case .neg:
-            guard let a = pStack.popLast() else { break }
+            guard let a = pStack.popLast() else { throw CPUError.missingParameters }
             pStack.append( a == 0 ? 0xFF : 0 )
+            pc += 1
             
         case .jmp:
-            guard let a = pStack.popLast() else { break }
+            guard let a = pStack.popLast() else { throw CPUError.missingParameters }
             /// relative jump is default
-            let newaddr = UInt16(Int(pc) + Int(a))
-            rStack.append( a )
-            pc = newaddr
+            pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         case .jot:
-            guard let a = pStack.popLast(), a != 0 else { break }
+            guard let a = pStack.popLast(), let b = pStack.popLast() else { throw CPUError.missingParameters }
             /// relative jump is default
-            let newaddr = UInt16(Int(pc) + Int(a))
-            rStack.append( a )
-            pc = newaddr
+            
+            
+//            rStack.append( a )
+            pc = b != 0 ?UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a))) : pc + 1
 
         default:
             print("unimplemented opcode: \(String(describing: op))")
         }
-        pc += 1
+        
     }
 }
 
@@ -180,32 +213,125 @@ class MMU {
     
     func debugInit() {
         
-        func opwrite(value: CPU.OpCode, address: UInt16) {
+        func opwrite(value: CPU.OpCode, address: UInt16) -> UInt16{
             bank[Int(address)] = value.rawValue
+            return address + 1
         }
 
-        var addr: UInt16 = 0
+        func test42() {
+            clear()
+            var addr: UInt16 = 0
+            
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 4, address: addr)
+            addr += 1
+            addr = opwrite(value: .lit, address: addr)
+            
+            write(value: 3, address: addr)
+            addr += 1
+            addr = opwrite(value: .add, address: addr)
+            
+            addr = opwrite(value: .lit, address: addr)
+            
+            write(value: 6, address: addr)
+            addr += 1
+            addr = opwrite(value: .mul, address: addr)
+            
+            addr = opwrite(value: .pop, address: addr)
+
+        }
         
-        opwrite(value: .lit, address: addr)
-        addr += 1
-        write(value: 4, address: addr)
-        addr += 1
-        opwrite(value: .lit, address: addr)
-        addr += 1
-        write(value: 3, address: addr)
-        addr += 1
-        opwrite(value: .add, address: addr)
-        addr += 1
-        opwrite(value: .lit, address: addr)
-        addr += 1
-        write(value: 6, address: addr)
-        addr += 1
-        opwrite(value: .mul, address: addr)
-        addr += 1
-        opwrite(value: .pop, address: addr)
+        func testRot() {
+            
+            clear()
+            var addr: UInt16 = 0
+
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 1, address: addr)
+            addr += 1
+            
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 2, address: addr)
+            addr += 1
+            
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 3, address: addr)
+            addr += 1
+
+            addr = opwrite(value: .rot, address: addr)
+            
+            addr = opwrite(value: .pop, address: addr)
+            addr = opwrite(value: .pop, address: addr)
+            addr = opwrite(value: .pop, address: addr)
+        }
         
+        func testOvr() {
+            
+            clear()
+            var addr: UInt16 = 0
+
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 1, address: addr)
+            addr += 1
+            
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 2, address: addr)
+            addr += 1
+            
+            addr = opwrite(value: .ovr, address: addr)
+            
+            addr = opwrite(value: .pop, address: addr)
+            addr = opwrite(value: .pop, address: addr)
+            addr = opwrite(value: .pop, address: addr)
+        }
+        
+        func testLoop() {
+            clear()
+            var addr: UInt16 = 0
+            
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 0, address: addr)
+            addr += 1
+            
+            /// label to jump to here
+            let beginLabel = addr
+
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 1, address: addr)
+            addr += 1
+
+            addr = opwrite(value: .add, address: addr)
+
+            addr = opwrite(value: .dup, address: addr)
+            
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 7, address: addr)
+            addr += 1
+
+            addr = opwrite(value: .equ, address: addr)
+
+            addr = opwrite(value: .neg, address: addr)
+
+            addr = opwrite(value: .lit, address: addr)
+            let offset = UInt8(bitPattern: Int8(Int16(beginLabel) - Int16(addr + 1)))
+            write(value: offset, address: addr)
+            addr += 1
+            addr = opwrite(value: .jot, address: addr)
+            
+            addr = opwrite(value: .pop, address: addr)
+
+        }
+
+//        test42()
+//        testRot()
+//        testOvr()
+        testLoop()
     }
 
+    func clear() {
+        bank = [UInt8](repeating: 0, count: 65536)
+    }
+    
     func write(value: UInt8, address: UInt16) {
         bank[Int(address)] = value
     }
@@ -377,7 +503,8 @@ class System {
     func runCycle() {
 //        print("run cycle \(Date.now)")
         /// step through ram and execute opcodes
-        cpu.clockTick()
+        
+        try! cpu.clockTick()
         /// update the display
         
             ppu.refresh()
