@@ -52,7 +52,12 @@ let bootROM: [CPU.OpCode] = [
 
 /// Central Processing Unit
 class CPU {
-    
+        
+    /// A possible alternative is to define each operation as a method and then
+    /// have an array of methods whose position matches their opcode.
+    /// The clock tick method would then just read an opcode from memory and use it as an index into the operation array.
+    /// With the retrieved method you can then just call it
+    /// (using op(CPU)() because methods are curried. see http://web.archive.org/web/20201225064902/https://oleb.net/blog/2014/07/swift-instance-methods-curried-functions/)
     
     enum OpCode: UInt8 {
         case nop
@@ -174,27 +179,33 @@ class MMU {
     var bank = [UInt8](repeating: 0, count: 65536)
     
     func debugInit() {
+        
+        func opwrite(value: CPU.OpCode, address: UInt16) {
+            bank[Int(address)] = value.rawValue
+        }
+
         var addr: UInt16 = 0
         
-        write(value: CPU.OpCode.lit.rawValue, address: addr)
+        opwrite(value: .lit, address: addr)
         addr += 1
         write(value: 4, address: addr)
         addr += 1
-        write(value: CPU.OpCode.lit.rawValue, address: addr)
+        opwrite(value: .lit, address: addr)
         addr += 1
         write(value: 3, address: addr)
         addr += 1
-        write(value: CPU.OpCode.add.rawValue, address: addr)
+        opwrite(value: .add, address: addr)
         addr += 1
-        write(value: CPU.OpCode.lit.rawValue, address: addr)
+        opwrite(value: .lit, address: addr)
         addr += 1
         write(value: 6, address: addr)
         addr += 1
-        write(value: CPU.OpCode.mul.rawValue, address: addr)
+        opwrite(value: .mul, address: addr)
         addr += 1
-        write(value: CPU.OpCode.pop.rawValue, address: addr)
+        opwrite(value: .pop, address: addr)
+        
     }
-    
+
     func write(value: UInt8, address: UInt16) {
         bank[Int(address)] = value
     }
