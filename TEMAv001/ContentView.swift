@@ -14,22 +14,44 @@ struct ContentView: View {
     
     @State private var windowDims = CGSize(width: winWidth, height: winHeight)
 
+    let cycleQ = DispatchQueue.global(qos: .userInitiated)
+    
     var system: System
     @ObservedObject var ppu: PPU
 
     init() {
         system = System()
-        ppu = system.ppu
-        system.runCycle()
+        ppu = PPU(width: winWidth, height: winHeight)
     }
     
+    // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
+    let emuAllowanceNanos: Double = 1_000_000_000 / 60
+        
+        
+    func runCycle() {
+        /// step through ram and execute opcodes
+        
+        try! system.cpu.clockTick()
+        
+        /// update the display
+        ppu.refresh()
+        
+        let nextCycle = DispatchTime.now() + .nanoseconds(Int(emuAllowanceNanos))
+        
+        cycleQ.asyncAfter(deadline: nextCycle, execute: runCycle)
+    }
+
     var body: some View {
 
         VStack {
-            Text("updated \(Date.now)")
+            HStack {
+                Button("Run TEMA", action: runCycle)
+                
+                Text("updated \(Date.now)")
                 .onTapGesture {
-                    system.debugTest()
+                    debugTest()
                 }
+            }
         if ppu.display != nil {
             let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
             Canvas { context, size in
@@ -42,6 +64,56 @@ struct ContentView: View {
         }
         }
             .frame(width: windowDims.width, height: windowDims.height)
+    }
+    
+    func debugTest() {
+        var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
+        
+        let o: [UInt8] = [
+            0, 0, 2, 2, 2, 2, 0, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 0, 2, 2, 2, 2, 0, 0
+        ]
+        
+        let k: [UInt8] = [
+            0, 2, 2, 0, 0, 0, 0, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 2, 2, 2, 0,
+            0, 2, 2, 2, 2, 2, 0, 0,
+            0, 2, 2, 2, 2, 2, 0, 0,
+            0, 2, 2, 0, 2, 2, 0, 0,
+            0, 2, 2, 0, 0, 2, 2, 0,
+            0, 2, 2, 0, 0, 2, 2, 0
+        ]
+
+        var y = 10
+        var xpos = 50
+
+        for r in 0 ..< 8 {
+            let yoff = y * winWidth
+            for c in 0 ..< 8 {
+                buf[yoff+xpos+c] = o[r*8+c]
+            }
+            y += 1
+        }
+
+        xpos += 8
+        y = 10
+        
+        for r in 0 ..< 8 {
+            let yoff = y * winWidth
+            for c in 0 ..< 8 {
+                buf[yoff+xpos+c] = k[r*8+c]
+            }
+            y += 1
+        }
+
+        ppu.pixelBuffer = buf
     }
 }
 
@@ -467,16 +539,14 @@ class System {
     
     var cpu: CPU
     var mmu: MMU
-    var ppu : PPU
+    
     
     var bus: [Bus]
-    
-    let cycleQ = DispatchQueue.global(qos: .userInitiated)
    
     init() {
         cpu = CPU()
         mmu = MMU()
-        ppu = PPU(width: System.displayHResolution, height: System.displayVResolution)
+
         bus = [Bus]()
         
         // connect the components
@@ -488,76 +558,6 @@ class System {
     func registerBus(sys: System, id: UInt8, name: String, comms: @escaping (Bus, UInt8, UInt8)->Void) -> Bus {
         print("Registered bus: \(id) \(name) at ")
         return Bus(owner: sys, comms: comms)
-    }
-    // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
-    let emuAllowanceNanos: Double = 1_000_000_000 / 60
-        
-    func debugTest() {
-        var buf = [UInt8](repeating: 0, count: System.displayHResolution * System.displayVResolution)
-        
-        let o: [UInt8] = [
-            0, 0, 2, 2, 2, 2, 0, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 0, 2, 2, 2, 2, 0, 0
-        ]
-        
-        let k: [UInt8] = [
-            0, 2, 2, 0, 0, 0, 0, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 2, 2, 2, 0,
-            0, 2, 2, 2, 2, 2, 0, 0,
-            0, 2, 2, 2, 2, 2, 0, 0,
-            0, 2, 2, 0, 2, 2, 0, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0
-        ]
-
-        var y = 10
-        var xpos = 50
-
-        for r in 0 ..< 8 {
-            let yoff = y * System.displayHResolution
-            for c in 0 ..< 8 {
-                buf[yoff+xpos+c] = o[r*8+c]
-            }
-            y += 1
-        }
-
-        xpos += 8
-        y = 10
-        
-        for r in 0 ..< 8 {
-            let yoff = y * System.displayHResolution
-            for c in 0 ..< 8 {
-                buf[yoff+xpos+c] = k[r*8+c]
-            }
-            y += 1
-        }
-
-        ppu.pixelBuffer = buf
-        
-        mmu.debugInit()
-        cpu.reset()
-    }
-        
-    func runCycle() {
-//        print("run cycle \(Date.now)")
-        /// step through ram and execute opcodes
-        
-        try! cpu.clockTick()
-        /// update the display
-        
-            ppu.refresh()
-        
-        
-        let nextCycle = DispatchTime.now() + .nanoseconds(Int(emuAllowanceNanos))
-        
-        cycleQ.asyncAfter(deadline: nextCycle, execute: runCycle)
     }
 }
 
