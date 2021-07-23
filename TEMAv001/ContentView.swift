@@ -30,12 +30,10 @@ struct ContentView: View {
     let emuAllowanceNanos: Double = 1_000_000_000 / 60
        
     func displayComms(bus: Bus, a: UInt8, b: UInt8) {
-//        let x = bus.buffer[0x8]
-//        let y = bus.buffer[0xA]
         if b != 0 && (a == 0xe) {
             let x = Int(bus.read16(a: 0x8))
             let y = Int(bus.read16(a: 0xA))
-//            debugOK(x: x, y: y)
+
             var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
             buf[y*winWidth+x] = bus.read(a: 0xE)
             ppu.pixelBuffer = buf
@@ -59,9 +57,11 @@ struct ContentView: View {
 
         VStack {
             HStack {
-                Button("Run TEMA") {
-                    displayBus = system.registerBus(id: .display, name: "screen", comms: displayComms)
-                    runCycle()
+                if displayBus == nil {
+                    Button("Run TEMA") {
+                        displayBus = system.registerBus(id: .display, name: "screen", comms: displayComms)
+                        runCycle()
+                    }
                 }
                 
                 Text("updated \(Date.now)")
@@ -412,6 +412,7 @@ class CPU {
         // memory operations
         case .bui:
             let a = try pStack.pop8()
+            pc += 1
     
         case .buo: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
             let a = try pStack.pop8()
@@ -420,6 +421,7 @@ class CPU {
             if let bus = sys.bus[Int(a >> 4)] {
                 bus.write(a: a, b: b)
             }
+            pc += 1
             
         // MARK: Implement short operations below.
         case .lit16:
@@ -517,7 +519,7 @@ class MMU {
             write(value: offset, address: adr)
             adr += 1
 
-            adr = opwrite(value: .jmp, address: adr)
+            opwrite(value: .jmp, address: adr)
         }
         
         func testOvr() {
@@ -654,7 +656,6 @@ class MMU {
             addr += 1
 
             addr = opwrite(value: .lit, address: addr)
-            
             /// 0xE is the pixel value and the signal to the display to push the pixel
             write(value: (Bus.Device.display.rawValue << 4) | 0xE, address: addr)
             addr += 1
