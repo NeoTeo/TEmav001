@@ -33,9 +33,12 @@ struct ContentView: View {
 //        let x = bus.buffer[0x8]
 //        let y = bus.buffer[0xA]
         if b != 0 && (a == 0xe) {
-            let x = bus.read16(a: 0x8)
-            let y = bus.read16(a: 0xA)
-            debugOK(x: x, y: y)
+            let x = Int(bus.read16(a: 0x8))
+            let y = Int(bus.read16(a: 0xA))
+//            debugOK(x: x, y: y)
+            var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
+            buf[y*winWidth+x] = bus.read(a: 0xE)
+            ppu.pixelBuffer = buf
         }
     }
         
@@ -615,7 +618,7 @@ class MMU {
             
             addr = opwrite(value: .lit16, address: addr)
             /// The second value is .buo's b parameter
-            write16(value: 100, address: addr)
+            write16(value: 250, address: addr)
             addr += 2
 
             addr = opwrite(value: .lit, address: addr)
@@ -623,6 +626,7 @@ class MMU {
             /// The top 4 bits of a are the bus id, bottom 4 bits are the index in the bus.buffer
             /// Since we're writing to the display we know it expects the x parameter in bus.buffer[0x8]
             /// and the y parameter in bus.buffer[0xA]
+            /// 0x8 is the pixel x position
             write(value: (Bus.Device.display.rawValue << 4) | 0x8, address: addr)
             addr += 1
             
@@ -632,11 +636,12 @@ class MMU {
             /// --------- set y coord
             
             addr = opwrite(value: .lit16, address: addr)
-            write16(value: 50, address: addr)
+            write16(value: 150, address: addr)
             addr += 2
 
             addr = opwrite(value: .lit, address: addr)
             
+            /// 0xA is the pixel y position
             write(value: (Bus.Device.display.rawValue << 4) | 0xA, address: addr)
             addr += 1
 
@@ -644,16 +649,17 @@ class MMU {
 
             /// ---------  set the pixel color
             
-            addr = opwrite(value: .lit16, address: addr)
-            write16(value: 2, address: addr)
-            addr += 2
+            addr = opwrite(value: .lit, address: addr)
+            write(value: 2, address: addr)
+            addr += 1
 
             addr = opwrite(value: .lit, address: addr)
             
+            /// 0xE is the pixel value and the signal to the display to push the pixel
             write(value: (Bus.Device.display.rawValue << 4) | 0xE, address: addr)
             addr += 1
 
-            addr = opwrite(value: .buo16, address: addr)
+            addr = opwrite(value: .buo, address: addr)
 
             infLoop(addr: addr)
         }
