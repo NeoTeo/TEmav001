@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB83C54E26AC0E4400DE7383 /* TEMA.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB83C54D26AC0E4400DE7383 /* TEMA.swift */; };
 		AB842BFA26A41A3D00D5425D /* TEMAv001App.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB842BF926A41A3D00D5425D /* TEMAv001App.swift */; };
 		AB842BFC26A41A3D00D5425D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB842BFB26A41A3D00D5425D /* ContentView.swift */; };
 		AB842BFE26A41A3E00D5425D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB842BFD26A41A3E00D5425D /* Assets.xcassets */; };
@@ -14,6 +15,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AB83C54D26AC0E4400DE7383 /* TEMA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TEMA.swift; sourceTree = "<group>"; };
 		AB842BF626A41A3D00D5425D /* TEMAv001.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TEMAv001.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB842BF926A41A3D00D5425D /* TEMAv001App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TEMAv001App.swift; sourceTree = "<group>"; };
 		AB842BFB26A41A3D00D5425D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -53,6 +55,7 @@
 			children = (
 				AB842BF926A41A3D00D5425D /* TEMAv001App.swift */,
 				AB842BFB26A41A3D00D5425D /* ContentView.swift */,
+				AB83C54D26AC0E4400DE7383 /* TEMA.swift */,
 				AB842BFD26A41A3E00D5425D /* Assets.xcassets */,
 				AB842BFF26A41A3E00D5425D /* Preview Content */,
 			);
@@ -137,6 +140,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AB83C54E26AC0E4400DE7383 /* TEMA.swift in Sources */,
 				AB842BFC26A41A3D00D5425D /* ContentView.swift in Sources */,
 				AB842BFA26A41A3D00D5425D /* TEMAv001App.swift in Sources */,
 			);
