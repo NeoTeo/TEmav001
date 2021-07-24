@@ -21,9 +21,12 @@ struct ContentView: View {
 
     @State var displayBus: Bus?
     
+    let romPath = "/Users/teo/Downloads/"
+    
     init() {
         system = System()
         ppu = PPU(width: winWidth, height: winHeight)
+        loadMemory(filepath: romPath + "test.rom")
     }
     
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
@@ -40,6 +43,26 @@ struct ContentView: View {
         }
     }
         
+    func loadMemory(filepath: String) {
+        let fileurl = URL(fileURLWithPath: filepath)
+        
+            do {
+//                let binary = try Data(contentsOf: fileurl, options: .mappedIfSafe)
+//                let dat = Array(binary)
+//                print("done")
+        
+                guard FileManager.default.fileExists(atPath: filepath),
+                        let binary = try? Data(contentsOf: URL(fileURLWithPath: filepath), options: .mappedIfSafe),
+                        let _ = try? system.loadRam(destAddr: 0x0, ram: Array(binary))
+                else {
+                    print("error loading binary from disk")
+                    return
+                }
+            } catch {
+                print("Data error \(error)")
+            }
+
+    }
     func runCycle() {
         /// step through ram and execute opcodes
         

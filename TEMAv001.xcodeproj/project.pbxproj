@@ -16,6 +16,7 @@
 
 /* Begin PBXFileReference section */
 		AB83C54D26AC0E4400DE7383 /* TEMA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TEMA.swift; sourceTree = "<group>"; };
+		AB83C55026AC2D7300DE7383 /* TEMAv001.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TEMAv001.entitlements; sourceTree = "<group>"; };
 		AB842BF626A41A3D00D5425D /* TEMAv001.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TEMAv001.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB842BF926A41A3D00D5425D /* TEMAv001App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TEMAv001App.swift; sourceTree = "<group>"; };
 		AB842BFB26A41A3D00D5425D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -53,6 +54,7 @@
 		AB842BF826A41A3D00D5425D /* TEMAv001 */ = {
 			isa = PBXGroup;
 			children = (
+				AB83C55026AC2D7300DE7383 /* TEMAv001.entitlements */,
 				AB842BF926A41A3D00D5425D /* TEMAv001App.swift */,
 				AB842BFB26A41A3D00D5425D /* ContentView.swift */,
 				AB83C54D26AC0E4400DE7383 /* TEMA.swift */,
@@ -269,6 +271,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TEMAv001/TEMAv001.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -298,6 +301,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TEMAv001/TEMAv001.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;

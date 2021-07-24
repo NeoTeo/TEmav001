@@ -9,6 +9,9 @@ import Foundation
 
 class System {
     
+    enum SystemError: Error {
+    case memoryLoading
+    }
     static public let displayHResolution = 640
     static public let displayVResolution = 480
     
@@ -39,6 +42,15 @@ class System {
         let newbus = Bus(owner: self, comms: comms)
         bus[Int(id.rawValue)] = newbus
         return newbus
+    }
+    
+    func loadRam(destAddr: UInt16, ram: [UInt8]) throws {
+        print("loadRam")
+        guard ram.count+Int(destAddr) <= mmu.bank.count else { throw SystemError.memoryLoading }
+        /// Would be faster with pointer juggling
+        for idx in 0 ..< ram.count {
+            mmu.bank[Int(destAddr)+idx] = ram[idx]
+        }
     }
 }
 
