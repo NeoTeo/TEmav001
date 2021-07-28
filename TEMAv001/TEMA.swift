@@ -45,7 +45,7 @@ class System {
     }
     
     func loadRam(destAddr: UInt16, ram: [UInt8]) throws {
-        print("loadRam")
+        
         guard ram.count+Int(destAddr) <= mmu.bank.count else { throw SystemError.memoryLoading }
         /// Would be faster with pointer juggling
         for idx in 0 ..< ram.count {
@@ -144,12 +144,14 @@ class CPU {
     /// With the retrieved method you can then just call it
     /// (using op(CPU)() because methods are curried. see http://web.archive.org/web/20201225064902/https://oleb.net/blog/2014/07/swift-instance-methods-curried-functions/)
     
+    // NOTE: Any changes in the number or order of the opcodes needs to be reflected in the TEas assembler.
     enum OpCode: UInt8 {
         case brk
         case nop
+        
         // stack operations
-        case pop
         case lit
+        case pop
         case dup
         case ovr
         case rot
@@ -170,12 +172,13 @@ class CPU {
         case jsr    // jump to subroutine
         
         // memory operations
-        case bui
-        case buo
+        case bsi    // bus in
+        case bso    // bus out
         
-        // 16 bit operations
-        case lit16
-        case buo16
+        // 16 bit operations (begin at 0x20)
+        case lit16 = 0x22
+        case jmp16 = 0x2E
+        case bso16
     }
     
     enum CPUError: Error {
@@ -240,11 +243,6 @@ class CPU {
             pc += 1
 
         /// stack operations
-        case .pop:
-            let val = try pStack.pop8()
-            print("popped value \(String(describing: val))")
-            pc += 1
-            
         case .lit:
             /// next value in memory assumed to be the value to push to pstack
             pc += 1
@@ -252,6 +250,11 @@ class CPU {
             try pStack.push8(lit)
             pc += 1
             
+        case .pop:
+            let val = try pStack.pop8()
+            print("popped value \(String(describing: val))")
+            pc += 1
+
         case .dup:
             try pStack.push8(try pStack.last8())
             pc += 1
@@ -293,7 +296,7 @@ class CPU {
             let a = try pStack.pop8()
             let b = try pStack.pop8()
 
-            try pStack.push8( b + a )
+            try pStack.push8( b &+ a )
             
             pc += 1
             
@@ -301,7 +304,7 @@ class CPU {
             let a = try pStack.pop8()
             let b = try pStack.pop8()
 
-            try pStack.push8( b - a )
+            try pStack.push8( UInt8(b &- a) )
             
             pc += 1
             
@@ -309,7 +312,7 @@ class CPU {
             let a = try pStack.pop8()
             let b = try pStack.pop8()
 
-            try pStack.push8( b * a )
+            try pStack.push8( b &* a )
 
             pc += 1
             
@@ -367,11 +370,11 @@ class CPU {
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         // memory operations
-        case .bui:
+        case .bsi:
             let a = try pStack.pop8()
             pc += 1
     
-        case .buo: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
+        case .bso: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
             let a = try pStack.pop8()
             let b = try pStack.pop8()
 
@@ -388,7 +391,11 @@ class CPU {
             try pStack.push16(lit)
             pc += 2
             
-        case .buo16: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
+        case .jmp16: /// unconditional absolute jump
+            let a = try pStack.pop16()
+            pc = a
+
+        case .bso16: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
             let a = try pStack.pop8()
             let b = try pStack.pop16()
             
@@ -590,7 +597,7 @@ class MMU {
             addr += 1
             
             // expects a byte and a short on the stack
-            addr = opwrite(value: .buo16, address: addr)
+            addr = opwrite(value: .bso16, address: addr)
 
             /// --------- set y coord
             
@@ -604,7 +611,7 @@ class MMU {
             write(value: (Bus.Device.display.rawValue << 4) | 0xA, address: addr)
             addr += 1
 
-            addr = opwrite(value: .buo16, address: addr)
+            addr = opwrite(value: .bso16, address: addr)
 
             /// ---------  set the pixel color
             
@@ -617,7 +624,7 @@ class MMU {
             write(value: (Bus.Device.display.rawValue << 4) | 0xE, address: addr)
             addr += 1
 
-            addr = opwrite(value: .buo, address: addr)
+            addr = opwrite(value: .bso, address: addr)
 
             infLoop(addr: addr)
         }

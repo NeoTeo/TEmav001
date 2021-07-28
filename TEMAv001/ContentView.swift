@@ -21,12 +21,12 @@ struct ContentView: View {
 
     @State var displayBus: Bus?
     
-    let romPath = "/Users/teo/Downloads/"
+    let objPath = "/Users/teo/Downloads/"
     
     init() {
         system = System()
         ppu = PPU(width: winWidth, height: winHeight)
-        loadMemory(filepath: romPath + "test.rom")
+        loadMemory(filepath: objPath + "loopy.obj")
     }
     
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
