@@ -380,8 +380,8 @@ class CPU {
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         case .jnz: /// conditional (not zero) relative jump
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try pStack.pop8()   // address offset
+            let b = try pStack.pop8()   // condition
 
             pc = b != 0 ?UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a))) : pc + 1
 
@@ -422,6 +422,42 @@ class CPU {
             print("popped short value \(String(describing: val))")
             pc += 1
 
+        case .dup16:
+            try pStack.push16(try pStack.last16())
+            pc += 1
+            
+        case .ovr16:
+
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+            
+            try pStack.push16(b)
+            try pStack.push16(a)
+            try pStack.push16(b)
+            
+            pc += 1
+            
+        case .rot16:
+            
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+            let c = try pStack.pop16()
+            
+            try pStack.push16(b)
+            try pStack.push16(a)
+            try pStack.push16(c)
+
+            pc += 1
+            
+        case .swp16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push16(a)
+            try pStack.push16(b)
+            
+            pc += 1
+            
         /// arithmetic operations
         case .add16:
             let a = try pStack.pop16()
@@ -457,8 +493,23 @@ class CPU {
             pc += 1
 
         case .jmp16: /// unconditional absolute jump
+            pc = try pStack.pop16()
+
+        case .jnz16: /// conditional (not zero) absolute jump
             let a = try pStack.pop16()
+            let b = try pStack.pop8()
+
+            pc = (b == 0) ? pc + 1 : a
+            
+        case .jsr16:  /// jump to subroutine, first storing the return address on the return stack
+            let a = try pStack.pop16()
+            
+            pc += 1 // Set the return pc to after this address.
+            /// store the current pc 16 bit address as 2 x 8 bits on the return stack, msb first
+            try rStack.push16(pc)
+            
             pc = a
+
 
         case .bso16: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
             let a = try pStack.pop8()
