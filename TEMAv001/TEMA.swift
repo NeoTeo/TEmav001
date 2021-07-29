@@ -145,6 +145,8 @@ class CPU {
     /// (using op(CPU)() because methods are curried. see http://web.archive.org/web/20201225064902/https://oleb.net/blog/2014/07/swift-instance-methods-curried-functions/)
     
     // NOTE: Any changes in the number or order of the opcodes needs to be reflected in the TEas assembler.
+    // Also, exactly duplicate short opcodes so each is a fixed (0x20) offset from its byte counterpart.
+    // Eg. lit16 (0x22) is exactly 0x20 from lit (0x02) and so are all the other short ops.
     enum OpCode: UInt8 {
         case brk
         case nop
@@ -177,8 +179,30 @@ class CPU {
         
         // 16 bit operations (begin at 0x20)
         case lit16 = 0x22
-        case jmp16 = 0x2E
-        case bso16
+        case pop16
+        case dup16
+        case ovr16
+        case rot16
+        case swp16
+        
+        // arithmetical operations
+        case add16
+        case sub16
+        case mul16
+        case div16
+        
+        // logic operations
+        case equ16
+        case grt16
+        case neg16  // negate the top of the stack
+
+        case jmp16 = 0x2F
+        case jnz16    // jump on true condition
+        case jsr16    // jump to subroutine
+        
+        // memory operations
+        case bsi16    // bus in
+        case bso16  // bus out
     }
     
     enum CPUError: Error {
@@ -221,15 +245,16 @@ class CPU {
         /// for both byte and shorts, the bottom 6 with ^ 0x3F
         let memval = sys.mmu.read(address: pc)
 
-//        let copyFlag = (memval & 0x40 != 0)
+        let copyFlag = (memval & 0x40 != 0)
         /// The opcode byte layout:
         /// bytes 0, 1, 2, 3, 4 are opcode, 5 is byte or short flag, 6 is copy, 7 is stack swap
         /// If the stack swap flag is set, swap source and destination stacks
-        let swapFlag = (memval & 0x80 != 0)
-//        var sourceStack: Stack = swapFlag ? rStack : pStack
-//        var targetStack: Stack = swapFlag ? pStack : rStack
+        let stackFlag = (memval & 0x80 != 0)
+        var sourceStack: Stack = stackFlag ? rStack : pStack
+        var targetStack: Stack = stackFlag ? pStack : rStack
         
-        let op = OpCode(rawValue: memval)
+        /// include the short flag in the opcode memory 
+        let op = OpCode(rawValue: memval & 0x3F)
         print("clockTick read opcode: \(String(describing: op))")
         if op == nil {
             print("ffs")
@@ -251,7 +276,7 @@ class CPU {
             pc += 1
             
         case .pop:
-            let val = try pStack.pop8()
+            let val = copyFlag ? try pStack.last8() : try pStack.pop8()
             print("popped value \(String(describing: val))")
             pc += 1
 
@@ -304,7 +329,7 @@ class CPU {
             let a = try pStack.pop8()
             let b = try pStack.pop8()
 
-            try pStack.push8( UInt8(b &- a) )
+            try pStack.push8( b &- a )
             
             pc += 1
             
@@ -391,6 +416,46 @@ class CPU {
             try pStack.push16(lit)
             pc += 2
             
+        case .pop16:
+            let val = copyFlag ? try pStack.last16() : try pStack.pop16()
+            
+            print("popped short value \(String(describing: val))")
+            pc += 1
+
+        /// arithmetic operations
+        case .add16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+            
+            try pStack.push16(b &+ a)
+            
+            pc += 1
+            
+        case .sub16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push16( b &- a )
+            
+            pc += 1
+            
+        case .mul16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push16( b &* a )
+
+            pc += 1
+            
+        case .div16:
+
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push16( b / a )
+            
+            pc += 1
+
         case .jmp16: /// unconditional absolute jump
             let a = try pStack.pop16()
             pc = a

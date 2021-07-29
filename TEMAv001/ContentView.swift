@@ -26,7 +26,7 @@ struct ContentView: View {
     init() {
         system = System()
         ppu = PPU(width: winWidth, height: winHeight)
-        loadMemory(filepath: objPath + "loopy.obj")
+        loadMemory(filepath: objPath + "shortadd.obj")
     }
     
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
