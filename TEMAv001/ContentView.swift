@@ -19,7 +19,10 @@ struct ContentView: View {
     var system: System
     @ObservedObject var ppu: PPU
 
+    @State var fps: Double = 0
+    
     @State var displayBus: Bus?
+    @State var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
     
     let objPath = "/Users/teo/Downloads/"
     
@@ -30,6 +33,7 @@ struct ContentView: View {
     }
     
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
+    // 1 second = 1_000_000_000 nanoseconds
     let emuAllowanceNanos: Double = 1_000_000_000 / 60
        
     func displayComms(bus: Bus, a: UInt8, b: UInt8) {
@@ -37,7 +41,7 @@ struct ContentView: View {
             let x = Int(bus.read16(a: 0x8))
             let y = Int(bus.read16(a: 0xA))
 
-            var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
+            //var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
             buf[y*winWidth+x] = bus.read(a: 0xE)
             ppu.pixelBuffer = buf
         }
@@ -63,17 +67,25 @@ struct ContentView: View {
             }
 
     }
+    
+    @State var prevTime: DispatchTime = DispatchTime(uptimeNanoseconds: 0)
+    
     func runCycle() {
-        /// step through ram and execute opcodes
+        let nowTime = DispatchTime.now()
+        let delta = nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds
+        prevTime = nowTime
         
+        fps = 1 / (Double(delta) / 1_000_000_000) // Technically could overflow for long running tests
+
+        /// step through ram and execute opcodes
         try! system.cpu.clockTick()
         
         /// update the display
         ppu.refresh()
-        
-        let nextCycle = DispatchTime.now() + .nanoseconds(Int(emuAllowanceNanos))
-        
-        cycleQ.asyncAfter(deadline: nextCycle, execute: runCycle)
+
+        //let nextCycle = DispatchTime.now() + .nanoseconds(Int(emuAllowanceNanos))
+        let nextCycle = DispatchTime.now().advanced(by: DispatchTimeInterval.nanoseconds(Int(emuAllowanceNanos)))
+        cycleQ.asyncAfter(deadline: nextCycle, qos: .userInteractive, execute: runCycle)
     }
 
     var body: some View {
@@ -83,14 +95,19 @@ struct ContentView: View {
                 if displayBus == nil {
                     Button("Run TEMA") {
                         displayBus = system.registerBus(id: .display, name: "screen", comms: displayComms)
-                        runCycle()
+                        Task.init(priority: .high) {
+                            runCycle()
+                        }
                     }
                 }
                 
-                Text("updated \(Date.now)")
-                .onTapGesture {
-                    //debugTest()
-                    system.mmu.debugInit()
+                HStack {
+                    Text("fps: \(fps) — ")
+                    Text("updated \(Date.now)")
+                    .onTapGesture {
+                        //debugTest()
+                        system.mmu.debugInit()
+                    }
                 }
             }
         if ppu.display != nil {
@@ -198,18 +215,20 @@ class PPU : ObservableObject {
     func refresh() {
 
         imageDataProvider = CGDataProvider(data: Data(pixelBuffer) as NSData)
+        let img = CGImage(width: self.horizontalPixels,
+                            height: self.verticalPixels,
+                        bitsPerComponent: 8,
+                            bitsPerPixel: self.bitsPerPixel,
+                            bytesPerRow: self.bytesPerRow,
+                            space: self.colorSpace!,
+                        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                            provider: self.imageDataProvider!,
+                        decode: nil,
+                        shouldInterpolate: false,
+                        intent: CGColorRenderingIntent.defaultIntent)
+        
         DispatchQueue.main.async {
-            self.display = CGImage(width: self.horizontalPixels,
-                              height: self.verticalPixels,
-                          bitsPerComponent: 8,
-                              bitsPerPixel: self.bitsPerPixel,
-                              bytesPerRow: self.bytesPerRow,
-                              space: self.colorSpace!,
-                          bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
-                              provider: self.imageDataProvider!,
-                          decode: nil,
-                          shouldInterpolate: false,
-                          intent: CGColorRenderingIntent.defaultIntent)
+            self.display = img
             if self.display == nil { fatalError("display is nil") }
         }
         
