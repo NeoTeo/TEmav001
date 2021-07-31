@@ -82,12 +82,13 @@ class Bus {
     }
     
     func read16(a: UInt8) -> UInt16 {
-        return UInt16(read(a: a) << 8) | UInt16(read(a: a + 1))
+        return UInt16(read(a: a)) << 8 | UInt16(read(a: a + 1))
     }
     
     func write(a: UInt8, b: UInt8) {
         buffer[Int(a & 0xF)] = b
         comms(self, a & 0x0F, 1)
+        // MARK: confirm that the 0 is not needed in the 0x0F
     }
     
     func write16(a: UInt8, b: UInt16) {
@@ -232,12 +233,17 @@ class CPU {
 //        rStackCounter = 0
     }
     
-    func clockTick() throws {
-        /// halt at 0xFFFF
-        guard pc < 65535 else {
-            print("reached end of RAM")
-            return
+    func run(ticks: Int) {
+        var tc = ticks
+        while tc > 0 {
+            try? clockTick()
+            tc -= 1
         }
+    }
+    
+    func clockTick() throws {
+        
+        guard pc > 0 else { return }
         
         /// since we're limiting the number of opcodes to 32 we are only using the bottom 5 bits.
         /// We can use the top three as flags for byte or short ops, copy rather than pop, and return from jump.
@@ -255,7 +261,10 @@ class CPU {
         
         /// include the short flag in the opcode memory 
         let op = OpCode(rawValue: memval & 0x3F)
-        print("clockTick read opcode: \(String(describing: op))")
+        if pc == 38 {
+            print("stop")
+        }
+        print("clockTick read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil {
             print("ffs")
         }
@@ -415,6 +424,7 @@ class CPU {
             let lit = sys.mmu.read16(address: pc)
             try pStack.push16(lit)
             pc += 2
+            // MARK: is this pc right?
             
         case .pop16:
             let val = copyFlag ? try pStack.last16() : try pStack.pop16()

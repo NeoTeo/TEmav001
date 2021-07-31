@@ -17,12 +17,14 @@ struct ContentView: View {
     let cycleQ = DispatchQueue.global(qos: .userInitiated)
     
     var system: System
-    @ObservedObject var ppu: PPU
+    @ObservedObject
+    var ppu: PPU
 
     @State var fps: Double = 0
+    @State var cycleRate: Double = 0
     
     @State var displayBus: Bus?
-    @State var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
+
     
     let objPath = "/Users/teo/Downloads/"
     
@@ -34,16 +36,16 @@ struct ContentView: View {
     
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
     // 1 second = 1_000_000_000 nanoseconds
-    let emuAllowanceNanos: Double = 1_000_000_000 / 60
+//    let emuAllowanceNanos: Double = 1_000_000_000 / 60
        
     func displayComms(bus: Bus, a: UInt8, b: UInt8) {
         if b != 0 && (a == 0xe) {
             let x = Int(bus.read16(a: 0x8))
             let y = Int(bus.read16(a: 0xA))
-
-            //var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
-            buf[y*winWidth+x] = bus.read(a: 0xE)
-            ppu.pixelBuffer = buf
+            let colIdx = bus.read(a: 0xE)
+            ppu.pixelBuffer[y*winWidth+x] = colIdx
+            
+            print("set a pixel at \(x),\(y)")
         }
     }
         
@@ -68,26 +70,63 @@ struct ContentView: View {
 
     }
     
-    @State var prevTime: DispatchTime = DispatchTime(uptimeNanoseconds: 0)
+    @State var prevTime: DispatchTime = DispatchTime.now()
+    @State var prevPPURefreshTime: DispatchTime = DispatchTime.now()
+    static let secondInNanos: Double = 1_000_000_000
+    let PPURefreshRate: Double = secondInNanos / 60
+    
+    @State var debugTestFirstRun = true
+    
+    let targetTEMAVirtualHz = 4_000_000
     
     func runCycle() {
-        let nowTime = DispatchTime.now()
-        let delta = nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds
-        prevTime = nowTime
+    
+        // set pc to 0x100 for first run (bodge)
+        if debugTestFirstRun == true { system.cpu.pc = 0x100 ; debugTestFirstRun = false }
         
-        fps = 1 / (Double(delta) / 1_000_000_000) // Technically could overflow for long running tests
-
         /// step through ram and execute opcodes
-        try! system.cpu.clockTick()
+//        try! system.cpu.clockTick()
+        let tickAllocation = targetTEMAVirtualHz / 60
+        system.cpu.run(ticks: tickAllocation)
         
-        /// update the display
-        ppu.refresh()
-
-        //let nextCycle = DispatchTime.now() + .nanoseconds(Int(emuAllowanceNanos))
-        let nextCycle = DispatchTime.now().advanced(by: DispatchTimeInterval.nanoseconds(Int(emuAllowanceNanos)))
-        cycleQ.asyncAfter(deadline: nextCycle, qos: .userInteractive, execute: runCycle)
+        /// update the display at 60 Hz
+        // 1_000_000_000 nanoseconds / 60 = 16.666.666,666666666
+        /*
+        let targetFps = 1.0
+        let nanoFps = 1_000_000_000 / targetFps
+        let refreshNow = DispatchTime.now()
+        let refreshdelta = Double(refreshNow.uptimeNanoseconds - prevPPURefreshTime.uptimeNanoseconds)
+        fps = Double(1_000_000_000 / refreshdelta)
+        
+        if refreshdelta >= nanoFps { //PPURefreshRate {
+            print("ppu refresh (delta is \(refreshdelta)")
+         */
+            ppu.refresh()
+        /*
+            prevPPURefreshTime = refreshNow
+        }
+        print("cpu refresh")
+         */
+        
+        let nowTime = DispatchTime.now()
+        let delta = Double(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
+        let dt = nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds
+        prevTime = nowTime
+        cycleRate = 1_000_000_000 / delta
+ 
+        let targetHz = 60//500
+        let nanoRate = 1_000_000_000 / targetHz
+        let arse = nanoRate-Int(dt)
+        
+        let newcyc = arse < 0 ? nanoRate + arse : nanoRate
+//        print("newcyc is \(newcyc)")
+        let nextCycle = DispatchTime.now().advanced(by: DispatchTimeInterval.nanoseconds(newcyc))
+        let nCycle = DispatchTime.now() + .nanoseconds(newcyc)
+        cycleQ.asyncAfter(deadline: nCycle, qos: .userInteractive, execute: runCycle)
+        
     }
 
+    
     var body: some View {
 
         VStack {
@@ -102,24 +141,25 @@ struct ContentView: View {
                 }
                 
                 HStack {
-                    Text("fps: \(fps) — ")
-                    Text("updated \(Date.now)")
-                    .onTapGesture {
-                        //debugTest()
-                        system.mmu.debugInit()
-                    }
+                    Text("TEMAv1")
+                        .onTapGesture {
+                            system.mmu.debugInit()
+                        }
+                    Text("cpu rate: \(cycleRate)").monospacedDigit()
+                    Text("fps: \(fps)").monospacedDigit()
                 }
             }
         if ppu.display != nil {
-            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
+//            TimelineView(.animation) {_ in
+//            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
             Canvas { context, size in
-
+                let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
                 context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 
-            }
+            }//.compositingGroup()
 //                .frame(width: windowDims.width, height: windowDims.height)
-        
-        }
+            }
+//        }
         }
             .frame(width: windowDims.width, height: windowDims.height)
     }
@@ -180,7 +220,7 @@ let bootROM: [CPU.OpCode] = [
 ]
 
 /// Pixel processing unit
-class PPU : ObservableObject {
+class PPU: ObservableObject {
     public var pixelBuffer: [UInt8]
     private let bytesPerRow = winWidth
     private let bitsPerPixel = 8
@@ -192,13 +232,14 @@ class PPU : ObservableObject {
 
     private var imageDataProvider: CGDataProvider!
     private var colorSpace: CGColorSpace!
-    @Published var display: CGImage?
+    @Published
+    var display: CGImage?
 
     public var horizontalPixels: Int
     public var verticalPixels: Int
     
     init(width: Int, height: Int) {
-        
+        print("PPU init")
         horizontalPixels = width
         verticalPixels = height
         
@@ -231,7 +272,6 @@ class PPU : ObservableObject {
             self.display = img
             if self.display == nil { fatalError("display is nil") }
         }
-        
     }
 }
 
