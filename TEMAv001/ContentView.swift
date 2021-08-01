@@ -79,34 +79,16 @@ struct ContentView: View {
     
     let targetTEMAVirtualHz = 4_000_000
     
-    func runCycle() {
+    func TEmuCycle() {
     
         // set pc to 0x100 for first run (bodge)
         if debugTestFirstRun == true { system.cpu.pc = 0x100 ; debugTestFirstRun = false }
         
         /// step through ram and execute opcodes
-//        try! system.cpu.clockTick()
         let tickAllocation = targetTEMAVirtualHz / 60
         system.cpu.run(ticks: tickAllocation)
         
-        /// update the display at 60 Hz
-        // 1_000_000_000 nanoseconds / 60 = 16.666.666,666666666
-        /*
-        let targetFps = 1.0
-        let nanoFps = 1_000_000_000 / targetFps
-        let refreshNow = DispatchTime.now()
-        let refreshdelta = Double(refreshNow.uptimeNanoseconds - prevPPURefreshTime.uptimeNanoseconds)
-        fps = Double(1_000_000_000 / refreshdelta)
-        
-        if refreshdelta >= nanoFps { //PPURefreshRate {
-            print("ppu refresh (delta is \(refreshdelta)")
-         */
             ppu.refresh()
-        /*
-            prevPPURefreshTime = refreshNow
-        }
-        print("cpu refresh")
-         */
         
         let nowTime = DispatchTime.now()
         let delta = Double(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
@@ -122,7 +104,7 @@ struct ContentView: View {
 //        print("newcyc is \(newcyc)")
         let nextCycle = DispatchTime.now().advanced(by: DispatchTimeInterval.nanoseconds(newcyc))
         let nCycle = DispatchTime.now() + .nanoseconds(newcyc)
-        cycleQ.asyncAfter(deadline: nCycle, qos: .userInteractive, execute: runCycle)
+        cycleQ.asyncAfter(deadline: nCycle, qos: .userInteractive, execute: TEmuCycle)
         
     }
 
@@ -135,7 +117,7 @@ struct ContentView: View {
                     Button("Run TEMA") {
                         displayBus = system.registerBus(id: .display, name: "screen", comms: displayComms)
                         Task.init(priority: .high) {
-                            runCycle()
+                            TEmuCycle()
                         }
                     }
                 }
