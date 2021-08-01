@@ -7,8 +7,11 @@
 
 import SwiftUI
 
+// Constants
 fileprivate let winWidth = 640
 fileprivate let winHeight = 480
+fileprivate let targetHz = 60//500
+fileprivate let nanoRate = 1_000_000_000 / targetHz
 
 struct ContentView: View {
     
@@ -50,24 +53,19 @@ struct ContentView: View {
     }
         
     func loadMemory(filepath: String) {
-        let fileurl = URL(fileURLWithPath: filepath)
         
             do {
-//                let binary = try Data(contentsOf: fileurl, options: .mappedIfSafe)
-//                let dat = Array(binary)
-//                print("done")
-        
-                guard FileManager.default.fileExists(atPath: filepath),
-                        let binary = try? Data(contentsOf: URL(fileURLWithPath: filepath), options: .mappedIfSafe),
-                        let _ = try? system.loadRam(destAddr: 0x0, ram: Array(binary))
-                else {
+                guard FileManager.default.fileExists(atPath: filepath) else {
                     print("error loading binary from disk")
                     return
                 }
-            } catch {
-                print("Data error \(error)")
-            }
+                
+                let binary = try Data(contentsOf: URL(fileURLWithPath: filepath), options: .mappedIfSafe)
+                try system.loadRam(destAddr: 0x0, ram: Array(binary))
 
+            } catch {
+                print("Data load error \(error)")
+            }
     }
     
     @State var prevTime: DispatchTime = DispatchTime.now()
@@ -78,7 +76,8 @@ struct ContentView: View {
     @State var debugTestFirstRun = true
     
     let targetTEMAVirtualHz = 4_000_000
-    
+    @State var fpsTimes: Int = 0
+
     func TEmuCycle() {
     
         // set pc to 0x100 for first run (bodge)
@@ -87,8 +86,12 @@ struct ContentView: View {
         /// step through ram and execute opcodes
         let tickAllocation = targetTEMAVirtualHz / 60
         system.cpu.run(ticks: tickAllocation)
-        
-            ppu.refresh()
+        if fpsTimes == 6 {
+            fpsTimes = 0
+            
+        }
+        fpsTimes += 1
+        ppu.refresh()
         
         let nowTime = DispatchTime.now()
         let delta = Double(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
@@ -96,8 +99,6 @@ struct ContentView: View {
         prevTime = nowTime
         cycleRate = 1_000_000_000 / delta
  
-        let targetHz = 60//500
-        let nanoRate = 1_000_000_000 / targetHz
         let arse = nanoRate-Int(dt)
         
         let newcyc = arse < 0 ? nanoRate + arse : nanoRate
