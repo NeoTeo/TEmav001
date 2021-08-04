@@ -10,8 +10,11 @@ import SwiftUI
 // Constants
 fileprivate let winWidth = 640
 fileprivate let winHeight = 480
-fileprivate let targetHz = 60//500
-fileprivate let nanoRate = 1_000_000_000 / targetHz
+fileprivate let nanosPerSecond = 1_000_000_000                          // number of nanoseconds in a second
+fileprivate let targetPPUHz = 60                                        // the target Hz of the ppu
+fileprivate let nanoPPURate = nanosPerSecond / targetPPUHz              // The number of nanoseconds in each ppu tick
+fileprivate let targetTEMAVirtualHz = 4_000_000                         // the target Hz of TEMA
+fileprivate let tickAllocation = targetTEMAVirtualHz / targetPPUHz      // the number of ticks each TEMA run gets per ppu tick
 
 struct ContentView: View {
     
@@ -23,8 +26,8 @@ struct ContentView: View {
     @ObservedObject
     var ppu: PPU
 
-    @State var fps: Double = 0
-    @State var cycleRate: Double = 0
+    @State var fps: Int = 0
+    @State var cycleRate: Int = 0
     
     @State var displayBus: Bus?
 
@@ -34,7 +37,7 @@ struct ContentView: View {
     init() {
         system = System()
         ppu = PPU(width: winWidth, height: winHeight)
-        loadMemory(filepath: objPath + "test.obj")
+        loadMemory(filepath: objPath + "test.teo")
     }
     
     // We want our cycle allowance (time given to each cycle of the emulator) to be calculated from 60 hz
@@ -69,46 +72,125 @@ struct ContentView: View {
     }
     
     @State var prevTime: DispatchTime = DispatchTime.now()
-    @State var prevPPURefreshTime: DispatchTime = DispatchTime.now()
-    static let secondInNanos: Double = 1_000_000_000
-    let PPURefreshRate: Double = secondInNanos / 60
-    
     @State var debugTestFirstRun = true
     
-    let targetTEMAVirtualHz = 4_000_000
-    @State var fpsTimes: Int = 0
 
+    @State var fpsTimes: Int = 0
+    @State var cyclesSeq: Int = 0
+    
     func TEmuCycle() {
     
         // set pc to 0x100 for first run (bodge)
         if debugTestFirstRun == true { system.cpu.pc = 0x100 ; debugTestFirstRun = false }
         
-        /// step through ram and execute opcodes
-        let tickAllocation = targetTEMAVirtualHz / 60
+        /// step through ram and execute allocated number of opcodes
         system.cpu.run(ticks: tickAllocation)
-        if fpsTimes == 6 {
+        
+        if fpsTimes == 30 {
             fpsTimes = 0
-            
+            fps = (nanosPerSecond / (cyclesSeq / 30)) //>> 6
+            cyclesSeq = 0
         }
         fpsTimes += 1
+        
+        
         ppu.refresh()
         
         let nowTime = DispatchTime.now()
-        let delta = Double(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
-        let dt = nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds
+        /// nanodelta is the number of nanoseconds the last emu cycle has taken
+        let nanodelta = Int(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
         prevTime = nowTime
-        cycleRate = 1_000_000_000 / delta
- 
-        let arse = nanoRate-Int(dt)
+//        fps = nanosPerSecond / nanodelta
+        // add up cycle timings for an average every second.
+        cyclesSeq += nanodelta
         
-        let newcyc = arse < 0 ? nanoRate + arse : nanoRate
+        /// calculate how much our actual cycle time differs from what it should be to hit the target. Negative number means a cycle is taking longer than targeted.
+        let arse = nanoPPURate-nanodelta
+        
+        let newcyc = arse < 0 ? nanoPPURate + arse : nanoPPURate
 //        print("newcyc is \(newcyc)")
-        let nextCycle = DispatchTime.now().advanced(by: DispatchTimeInterval.nanoseconds(newcyc))
-        let nCycle = DispatchTime.now() + .nanoseconds(newcyc)
+//        let nextCycle = DispatchTime.now().advanced(by: DispatchTimeInterval.nanoseconds(newcyc))
+        let nCycle = DispatchTime.now().advanced(by: .nanoseconds(newcyc))
+        if newcyc > nanoPPURate {
+            print("WTF")
+            
+        }
         cycleQ.asyncAfter(deadline: nCycle, qos: .userInteractive, execute: TEmuCycle)
+    }
+    
+    @MainActor
+    func TEmuCycle2() {
+    
+        // set pc to 0x100 for first run (bodge)
+        if debugTestFirstRun == true { system.cpu.pc = 0x100 ; debugTestFirstRun = false }
         
+        /// step through ram and execute allocated number of opcodes
+        system.cpu.run(ticks: tickAllocation)
+        DispatchQueue.main.async {
+        if fpsTimes == 30 {
+            fpsTimes = 0
+            fps = (nanosPerSecond / (cyclesSeq / 30)) //>> 6
+            cyclesSeq = 0
+        }
+        
+            fpsTimes += 1
+        }
+        
+        
+        
+        ppu.refresh()
+        
+        let nowTime = DispatchTime.now()
+        /// nanodelta is the number of nanoseconds the last emu cycle has taken
+        let nanodelta = Int(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
+        DispatchQueue.main.async {
+        prevTime = nowTime
+//        fps = nanosPerSecond / nanodelta
+        // add up cycle timings for an average every second.
+        cyclesSeq += nanodelta
+        }
     }
 
+    var _body: some View {
+
+        VStack {
+            HStack {
+                if displayBus == nil {
+                    Button("Run TEMA") {
+                        displayBus = system.registerBus(id: .display, name: "screen", comms: displayComms)
+                        Task.init(priority: .high) {
+                            TEmuCycle()
+                        }
+                    }
+                }
+                
+                HStack {
+                    Text("TEMAv1")
+                        .onTapGesture {
+                            system.mmu.debugInit()
+                        }
+                    Text("cpu rate: \(cycleRate)").monospacedDigit()
+                    Text("fps: \(fps)").monospacedDigit()
+                }
+            }
+        if ppu.display != nil {
+            TimelineView(.animation) { _ in
+//            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
+                
+            Canvas { context, size in
+                
+                TEmuCycle2()
+                
+                let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
+                context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
+                
+            }//.compositingGroup()
+//                .frame(width: windowDims.width, height: windowDims.height)
+            }
+        }
+        }
+            .frame(width: windowDims.width, height: windowDims.height)
+    }
     
     var body: some View {
 
@@ -136,7 +218,7 @@ struct ContentView: View {
 //            TimelineView(.animation) {_ in
 //            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
             Canvas { context, size in
-                let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
+                let disp = context.resolve(Image(ppu.display!, scale: 1, label: Text("raster display")))
                 context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 
             }//.compositingGroup()

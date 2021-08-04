@@ -383,7 +383,7 @@ class CPU {
             pc += 1
             
         case .jmp: /// unconditional relative jump
-            let a = try pStack.pop8()
+            let a = try sourceStack.pop8()
 
             /// relative jump is default
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
@@ -394,12 +394,11 @@ class CPU {
 
             pc = b != 0 ?UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a))) : pc + 1
 
-        case .jsr:  /// jump to subroutine, first storing the return address on the return stack
+        case .jsr:  /// jump to subroutine at offset, first storing the return address on the return stack
             let a = try pStack.pop8()
             
-            pc += 1 // Set the return pc to after this address.
             /// store the current pc 16 bit address as 2 x 8 bits on the return stack, msb first
-            try rStack.push16(pc)
+            try rStack.push16(pc+1)
             
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
@@ -503,7 +502,7 @@ class CPU {
             pc += 1
 
         case .jmp16: /// unconditional absolute jump
-            pc = try pStack.pop16()
+            pc = try sourceStack.pop16()
 
         case .jnz16: /// conditional (not zero) absolute jump
             let a = try pStack.pop16()
@@ -511,12 +510,11 @@ class CPU {
 
             pc = (b == 0) ? pc + 1 : a
             
-        case .jsr16:  /// jump to subroutine, first storing the return address on the return stack
+        case .jsr16:  /// jump to subroutine at absolute address, first storing the return address on the return stack
             let a = try pStack.pop16()
             
-            pc += 1 // Set the return pc to after this address.
             /// store the current pc 16 bit address as 2 x 8 bits on the return stack, msb first
-            try rStack.push16(pc)
+            try rStack.push16(pc+1)
             
             pc = a
 
