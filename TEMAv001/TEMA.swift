@@ -175,6 +175,10 @@ class CPU {
         case jsr    // jump to subroutine
         
         // memory operations
+        case lda    // load byte value from absoute address
+        case sta    // store byte value at absolute address
+        case ldr    // load byte value from relative address
+        case str    // store byte value at relative address
         case bsi    // bus in
         case bso    // bus out
         
@@ -202,6 +206,10 @@ class CPU {
         case jsr16    // jump to subroutine
         
         // memory operations
+        case lda16      // load short value from absoute address
+        case sta16      // store short value at absolute address
+        case ldr16      // load short value from relative address
+        case str16      // store short value at relative address
         case bsi16    // bus in
         case bso16  // bus out
     }
@@ -403,6 +411,29 @@ class CPU {
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         // memory operations
+// NOTE:           test these four new ops + write 16 bit versions
+        case .lda:  // load the byte at the given absolute address onto the top of the parameter stack.
+            let a = try pStack.pop16()
+            try pStack.push8(sys.mmu.read(address: a))
+            pc += 1
+            
+        case .sta:  // ( value addr -- ) store the byte on top of the parameter stack to the given absolute address.
+            let a = try pStack.pop16()
+            let b = try pStack.pop8()
+            sys.mmu.write(value: b, address: a)
+            pc += 1
+            
+        case .ldr:  // load the byte at the given relative address onto the top of the parameter stack.
+            let a = try pStack.pop8()
+            try pStack.push8(sys.mmu.read(address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))))
+            pc += 1
+            
+        case .str: // ( value addr -- ) store the byte on top of the parameter stack to the given relative address.
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+            sys.mmu.write(value: b, address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a))))
+            pc += 1
+            
         case .bsi:
             let a = try pStack.pop8()
             pc += 1
