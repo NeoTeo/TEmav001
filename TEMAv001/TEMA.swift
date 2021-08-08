@@ -402,7 +402,7 @@ class CPU {
             try pStack.push8( b ^ a )
             pc += 1
             
-        case .shi:
+        case .shi: // ( bitshift value -- result )
             let a = try pStack.pop8()
             let b = try pStack.pop8()
             /// use the three least significant bits of the most significant nibble of a to shift up by 0 to 7 bits (the max needed for a byte) and
@@ -575,30 +575,34 @@ class CPU {
             pc += 1
 
         case .and16:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
 
-            try pStack.push8( b & a )
-
+            try pStack.push16( b & a )
+            pc += 1
+            
         case .ior16:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
 
-            try pStack.push8( b | a )
-
+            try pStack.push16( b | a )
+            pc += 1
+            
         case .xor16:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
 
-            try pStack.push8( b ^ a )
-
-        case .shi16:
+            try pStack.push16( b ^ a )
+            pc += 1
+            
+        case .shi16: // ( bitshift value -- result )
             let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let b = try pStack.pop16()
             /// use the four least significant bits of the most significant nibble of a to shift up by 0 to f bits (the max needed for a short) and
             /// use the four least significant bits of the least significant nibble of a to shift down by 0 to f bits.
-            try pStack.push8((b >> (a & 0x0f)) << ((a & 0xf0) >> 4))
-
+            try pStack.push16((b >> (a & 0x0f)) << ((a & 0xf0) >> 4))
+            pc += 1
+            
         case .jmp16: /// unconditional absolute jump
             pc = try sourceStack.pop16()
 
