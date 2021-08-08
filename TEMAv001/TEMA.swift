@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AppKit
 
 class System {
     
@@ -166,6 +167,12 @@ class CPU {
         case mul
         case div
         
+        // bitwise logic
+        case and
+        case ior
+        case xor
+        case shi
+
         // logic operations
         case equ
         case grt
@@ -196,12 +203,18 @@ class CPU {
         case mul16
         case div16
         
+        // bitwise logic
+        case and16
+        case ior16
+        case xor16
+        case shi16
+
         // logic operations
         case equ16
         case grt16
         case neg16  // negate the top of the stack
 
-        case jmp16 = 0x2F
+        case jmp16 //= 0x2F
         case jnz16    // jump on true condition
         case jsr16    // jump to subroutine
         
@@ -264,8 +277,8 @@ class CPU {
         /// bytes 0, 1, 2, 3, 4 are opcode, 5 is byte or short flag, 6 is copy, 7 is stack swap
         /// If the stack swap flag is set, swap source and destination stacks
         let stackFlag = (memval & 0x80 != 0)
-        var sourceStack: Stack = stackFlag ? rStack : pStack
-        var targetStack: Stack = stackFlag ? pStack : rStack
+        let sourceStack: Stack = stackFlag ? rStack : pStack
+        let targetStack: Stack = stackFlag ? pStack : rStack
         
         /// include the short flag in the opcode memory 
         let op = OpCode(rawValue: memval & 0x3F)
@@ -367,13 +380,42 @@ class CPU {
             
             pc += 1
             
+        /// bitwise logic
+        case .and:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+
+            try pStack.push8( b & a )
+            pc += 1
+
+        case .ior:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+
+            try pStack.push8( b | a )
+            pc += 1
+            
+        case .xor:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+
+            try pStack.push8( b ^ a )
+            pc += 1
+            
+        case .shi:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+            /// use the three least significant bits of the most significant nibble of a to shift up by 0 to 7 bits (the max needed for a byte) and
+            /// use the three least significant bits of the least significant nibble of a to shift down by 0 to 7 bits.
+            try pStack.push8((b >> (a & 0x07)) << ((a & 0x70) >> 4))
+            pc += 1
+            
         /// logic operations
         case .equ:
             let a = try pStack.pop8()
             let b = try pStack.pop8()
 
             try pStack.push8( b == a ? 0xFF : 0 )
-        
             pc += 1
             
         case .grt:
@@ -411,7 +453,7 @@ class CPU {
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         // memory operations
-// NOTE:           test these four new ops + write 16 bit versions
+// NOTE:           write 16 bit versions
         case .lda:  // load the byte at the given absolute address onto the top of the parameter stack.
             let a = try pStack.pop16()
             try pStack.push8(sys.mmu.read(address: a))
@@ -532,6 +574,31 @@ class CPU {
             
             pc += 1
 
+        case .and16:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+
+            try pStack.push8( b & a )
+
+        case .ior16:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+
+            try pStack.push8( b | a )
+
+        case .xor16:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+
+            try pStack.push8( b ^ a )
+
+        case .shi16:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+            /// use the four least significant bits of the most significant nibble of a to shift up by 0 to f bits (the max needed for a short) and
+            /// use the four least significant bits of the least significant nibble of a to shift down by 0 to f bits.
+            try pStack.push8((b >> (a & 0x0f)) << ((a & 0xf0) >> 4))
+
         case .jmp16: /// unconditional absolute jump
             pc = try sourceStack.pop16()
 
@@ -548,6 +615,29 @@ class CPU {
             try rStack.push16(pc+1)
             
             pc = a
+            
+        // NOTE: Test these
+        case .lda16:  // load the short at the given absolute address onto the top of the parameter stack.
+            let a = try pStack.pop16()
+            try pStack.push16(sys.mmu.read16(address: a))
+            pc += 1
+            
+        case .sta16:  // ( value addr -- ) store the short on top of the parameter stack to the given absolute address.
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+            sys.mmu.write16(value: b, address: a)
+            pc += 1
+            
+        case .ldr16:  // load the short at the given relative address onto the top of the parameter stack.
+            let a = try pStack.pop16()
+            try pStack.push16(sys.mmu.read16(address: pc + a))
+            pc += 1
+            
+        case .str16: // ( value addr -- ) store the short on top of the parameter stack to the given relative address.
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+            sys.mmu.write16(value: b, address: pc + a)
+            pc += 1
 
 
         case .bso16: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
