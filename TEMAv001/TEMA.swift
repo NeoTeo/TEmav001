@@ -160,6 +160,7 @@ class CPU {
         case ovr
         case rot
         case swp
+        case sts    // stack to stack transfer
         
         // arithmetical operations
         case add
@@ -187,11 +188,11 @@ class CPU {
         case jnz    // jump on true condition
         case jsr    // jump to subroutine
         
-        // memory operations
-        case lda    // load byte value from absoute address
-        case sta    // store byte value at absolute address
-        case ldr    // load byte value from relative address
-        case str    // store byte value at relative address
+        // memory operations (the stack can be parameter or return stack depending on the return flag of the opcode)
+        case lda    // load byte value from absoute address to stack
+        case sta    // store byte value on top of stack at absolute address
+        case ldr    // load byte value from relative address to stack
+        case str    // store byte value from top of stack at relative address
         case bsi    // bus in
         case bso    // bus out
         
@@ -202,6 +203,7 @@ class CPU {
         case ovr16
         case rot16
         case swp16
+        case sts16
         
         // arithmetical operations
         case add16
@@ -353,7 +355,13 @@ class CPU {
             try pStack.push8(b)
             
             pc += 1
+
+        case .sts:  // stack to stack transfer
+            let a = try sourceStack.pop8()
+            try targetStack.push8(a)
             
+            pc += 1
+
         /// arithmetic operations
         case .add:
             let a = try pStack.pop8()
@@ -563,6 +571,13 @@ class CPU {
             
             pc += 1
             
+        case .sts16: // stack to stack transfer
+            let a = try sourceStack.pop16()
+            try targetStack.push16(a)
+            
+            pc += 1
+
+
         /// arithmetic operations
         case .add16:
             let a = try pStack.pop16()
