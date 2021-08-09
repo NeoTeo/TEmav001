@@ -175,8 +175,14 @@ class CPU {
 
         // logic operations
         case equ
+        case neq
         case grt
-        case neg    // negate the top of the stack
+        case lst
+        /// there is always  a trade-off between space and time; we can have a single equality and a single greater than operator and
+        /// achieve its complements by having a negation operation, but this comes at the cost of run-time complexity where each of
+        /// these tests would require two ops and two cycles instead of one. After consideration i have decided, since there is room for it,
+        /// to have two more operations.
+//        case neg    // negate the top of the stack
         case jmp    // jump unconditinally
         case jnz    // jump on true condition
         case jsr    // jump to subroutine
@@ -211,8 +217,10 @@ class CPU {
 
         // logic operations
         case equ16
+        case neq16
         case grt16
-        case neg16  // negate the top of the stack
+        case lst16
+//        case neg16  // negate the top of the stack
 
         case jmp16 //= 0x2F
         case jnz16    // jump on true condition
@@ -417,7 +425,14 @@ class CPU {
 
             try pStack.push8( b == a ? 0xFF : 0 )
             pc += 1
-            
+
+        case .neq:
+            let a = try pStack.pop8()
+            let b = try pStack.pop8()
+
+            try pStack.push8( b != a ? 0xFF : 0 )
+            pc += 1
+
         case .grt:
             let a = try pStack.pop8()
             let b = try pStack.pop8()
@@ -425,12 +440,20 @@ class CPU {
             try pStack.push8( b > a ? 0xFF : 0 )
             
             pc += 1
-            
-        case .neg:
+
+        case .lst:
             let a = try pStack.pop8()
-            try pStack.push8( a == 0 ? 0xFF : 0 )
+            let b = try pStack.pop8()
+
+            try pStack.push8( b < a ? 0xFF : 0 )
             
             pc += 1
+
+//        case .neg:
+//            let a = try pStack.pop8()
+//            try pStack.push8( a == 0 ? 0xFF : 0 )
+//
+//            pc += 1
             
         case .jmp: /// unconditional relative jump
             let a = try sourceStack.pop8()
@@ -603,6 +626,43 @@ class CPU {
             try pStack.push16((b >> (a & 0x0f)) << ((a & 0xf0) >> 4))
             pc += 1
             
+        /// logic operations
+        case .equ16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push8( b == a ? 0xFF : 0 )
+            pc += 1
+
+        case .neq16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push8( b != a ? 0xFF : 0 )
+            pc += 1
+
+        case .grt16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push8( b > a ? 0xFF : 0 )
+            
+            pc += 1
+
+        case .lst16:
+            let a = try pStack.pop16()
+            let b = try pStack.pop16()
+
+            try pStack.push8( b < a ? 0xFF : 0 )
+            
+            pc += 1
+
+//        case .neg16:
+//            let a = try pStack.pop16()
+//            try pStack.push8( a == 0 ? 0xFF : 0 )
+//
+//            pc += 1
+        
         case .jmp16: /// unconditional absolute jump
             pc = try sourceStack.pop16()
 
@@ -780,9 +840,10 @@ class MMU {
             write(value: 7, address: addr)
             addr += 1
 
-            addr = opwrite(value: .equ, address: addr)
-
-            addr = opwrite(value: .neg, address: addr)
+            addr = opwrite(value: .neq, address: addr)
+//            addr = opwrite(value: .equ, address: addr)
+//
+//            addr = opwrite(value: .neg, address: addr)
 
             addr = opwrite(value: .lit, address: addr)
             let offset = UInt8(bitPattern: Int8(Int16(beginLabel) - Int16(addr + 1)))
