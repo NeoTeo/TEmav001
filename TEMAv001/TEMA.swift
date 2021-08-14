@@ -299,63 +299,62 @@ class CPU {
         }
         dbgTickCount += 1
         print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
-        if op == nil {
-            print("ffs")
-        }
+        if op == nil { fatalError("op is nil") }
         do {
         switch op {
         case .brk:
-            pc = 0
+            pc =  0
             
         case .nop:
             pc += 1
 
+            
         /// stack operations
         case .lit:
             /// next value in memory assumed to be the value to push to pstack
             pc += 1
             let lit = sys.mmu.read(address: pc)
-            try pStack.push8(lit)
+            try sourceStack.push8(lit)
             pc += 1
             
         case .pop:
-            let val = copyFlag ? try pStack.last8() : try pStack.pop8()
+            let val = copyFlag ? try sourceStack.last8() : try sourceStack.pop8()
             print("popped value \(String(describing: val))")
             pc += 1
 
         case .dup:
-            try pStack.push8(try pStack.last8())
+            try sourceStack.push8(try sourceStack.last8())
             pc += 1
             
         case .ovr: // ( b a -- b a b )
 
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
             
-            try pStack.push8(b)
-            try pStack.push8(a)
-            try pStack.push8(b)
+            try sourceStack.push8(b)
+            try sourceStack.push8(a)
+            try sourceStack.push8(b)
             
             pc += 1
             
         case .rot: // ( c b a -- b a c )
             
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
-            let c = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
+            let c = try sourceStack.pop8()
             
-            try pStack.push8(b)
-            try pStack.push8(a)
-            try pStack.push8(c)
+            try sourceStack.push8(b)
+            try sourceStack.push8(a)
+            try sourceStack.push8(c)
 
             pc += 1
             
         case .swp:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8(a)
-            try pStack.push8(b)
+            try sourceStack.push8(a)
+            try sourceStack.push8(b)
             
             pc += 1
 
@@ -368,96 +367,96 @@ class CPU {
 
         /// arithmetic operations
         case .add:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b &+ a )
+            try sourceStack.push8( b &+ a )
             
             pc += 1
             
         case .sub:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b &- a )
+            try sourceStack.push8( b &- a )
             
             pc += 1
             
         case .mul:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b &* a )
+            try sourceStack.push8( b &* a )
 
             pc += 1
             
         case .div:
 
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b / a )
+            try sourceStack.push8( b / a )
             
             pc += 1
             
         /// bitwise logic
         case .and:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b & a )
+            try sourceStack.push8( b & a )
             pc += 1
 
         case .ior:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b | a )
+            try sourceStack.push8( b | a )
             pc += 1
             
         case .xor:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b ^ a )
+            try sourceStack.push8( b ^ a )
             pc += 1
             
         case .shi: // ( value bitshift -- result )
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
             /// use the three least significant bits of the most significant nibble of a to shift up by 0 to 7 bits (the max needed for a byte) and
             /// use the three least significant bits of the least significant nibble of a to shift down by 0 to 7 bits.
-            try pStack.push8((b >> (a & 0x07)) << ((a & 0x70) >> 4))
+            try sourceStack.push8((b >> (a & 0x07)) << ((a & 0x70) >> 4))
             pc += 1
             
         /// logic operations
         case .equ:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b == a ? 0xFF : 0 )
+            try sourceStack.push8( b == a ? 0xFF : 0 )
             pc += 1
 
         case .neq:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b != a ? 0xFF : 0 )
+            try sourceStack.push8( b != a ? 0xFF : 0 )
             pc += 1
 
         case .grt:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b > a ? 0xFF : 0 )
+            try sourceStack.push8( b > a ? 0xFF : 0 )
             
             pc += 1
 
         case .lst:
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
-            try pStack.push8( b < a ? 0xFF : 0 )
+            try sourceStack.push8( b < a ? 0xFF : 0 )
             
             pc += 1
 
@@ -474,50 +473,50 @@ class CPU {
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         case .jnz: /// conditional (not zero) relative jump
-            let a = try pStack.pop8()   // address offset
-            let b = try pStack.pop8()   // condition
+            let a = try sourceStack.pop8()   // address offset
+            let b = try sourceStack.pop8()   // condition
 
             pc = b != 0 ?UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a))) : pc + 1
 
         case .jsr:  /// jump to subroutine at offset, first storing the return address on the return stack
-            let a = try pStack.pop8()
+            let a = try sourceStack.pop8()
             
             /// store the current pc 16 bit address as 2 x 8 bits on the return stack, msb first
-            try rStack.push16(pc+1)
+            try targetStack.push16(pc+1)
             
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         // memory operations
 // NOTE:           write 16 bit versions and use the sourcestack to allow use of the returnstack given the flag setting.
         case .lda:  // load the byte at the given absolute address onto the top of the parameter stack.
-            let a = try pStack.pop16()
-            try pStack.push8(sys.mmu.read(address: a))
+            let a = try sourceStack.pop16()
+            try sourceStack.push8(sys.mmu.read(address: a))
             pc += 1
             
         case .sta:  // ( value addr -- ) store the byte on top of the parameter stack to the given absolute address.
-            let a = try pStack.pop16()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop8()
             sys.mmu.write(value: b, address: a)
             pc += 1
             
         case .ldr:  // load the byte at the given relative address onto the top of the parameter stack.
-            let a = try pStack.pop8()
-            try pStack.push8(sys.mmu.read(address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))))
+            let a = try sourceStack.pop8()
+            try sourceStack.push8(sys.mmu.read(address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))))
             pc += 1
             
         case .str: // ( value addr -- ) store the byte on top of the parameter stack to the given relative address.
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
             sys.mmu.write(value: b, address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a))))
             pc += 1
             
         case .bsi:
-            let a = try pStack.pop8()
+            let a = try sourceStack.pop8()
             pc += 1
     
         case .bso: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
-            let a = try pStack.pop8()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop8()
 
             if let bus = sys.bus[Int(a >> 4)] {
                 bus.write(a: a, b: b)
@@ -529,49 +528,49 @@ class CPU {
             /// next value in memory assumed to be the value to push to pstack
             pc += 1
             let lit = sys.mmu.read16(address: pc)
-            try pStack.push16(lit)
+            try sourceStack.push16(lit)
             pc += 2
             // MARK: is this pc right?
             
         case .pop16:
-            let val = copyFlag ? try pStack.last16() : try pStack.pop16()
+            let val = copyFlag ? try sourceStack.last16() : try sourceStack.pop16()
             
             print("popped short value \(String(describing: val))")
             pc += 1
 
         case .dup16:
-            try pStack.push16(try pStack.last16())
+            try sourceStack.push16(try sourceStack.last16())
             pc += 1
             
         case .ovr16:
 
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
             
-            try pStack.push16(b)
-            try pStack.push16(a)
-            try pStack.push16(b)
+            try sourceStack.push16(b)
+            try sourceStack.push16(a)
+            try sourceStack.push16(b)
             
             pc += 1
             
         case .rot16:
             
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
-            let c = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
+            let c = try sourceStack.pop16()
             
-            try pStack.push16(b)
-            try pStack.push16(a)
-            try pStack.push16(c)
+            try sourceStack.push16(b)
+            try sourceStack.push16(a)
+            try sourceStack.push16(c)
 
             pc += 1
             
         case .swp16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push16(a)
-            try pStack.push16(b)
+            try sourceStack.push16(a)
+            try sourceStack.push16(b)
             
             pc += 1
             
@@ -585,101 +584,101 @@ class CPU {
 
         /// arithmetic operations
         case .add16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
             
-            try pStack.push16(b &+ a)
+            try sourceStack.push16(b &+ a)
             
             pc += 1
             
         case .sub16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push16( b &- a )
+            try sourceStack.push16( b &- a )
             
             pc += 1
             
         case .mul16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push16( b &* a )
+            try sourceStack.push16( b &* a )
 
             pc += 1
             
         case .div16:
 
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push16( b / a )
+            try sourceStack.push16( b / a )
             
             pc += 1
 
         case .and16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push16( b & a )
+            try sourceStack.push16( b & a )
             pc += 1
             
         case .ior16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push16( b | a )
+            try sourceStack.push16( b | a )
             pc += 1
             
         case .xor16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push16( b ^ a )
+            try sourceStack.push16( b ^ a )
             pc += 1
             
         case .shi16: // ( value bitshift -- result )
-            let a = try pStack.pop8()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop16()
             /// use the four least significant bits of the most significant nibble of a to shift up by 0 to f bits (the max needed for a short) and
             /// use the four least significant bits of the least significant nibble of a to shift down by 0 to f bits.
-            try pStack.push16((b >> (a & 0x0f)) << ((a & 0xf0) >> 4))
+            try sourceStack.push16((b >> (a & 0x0f)) << ((a & 0xf0) >> 4))
             pc += 1
             
         /// logic operations
         case .equ16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push8( b == a ? 0xFF : 0 )
+            try sourceStack.push8( b == a ? 0xFF : 0 )
             pc += 1
 
         case .neq16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push8( b != a ? 0xFF : 0 )
+            try sourceStack.push8( b != a ? 0xFF : 0 )
             pc += 1
 
         case .grt16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push8( b > a ? 0xFF : 0 )
+            try sourceStack.push8( b > a ? 0xFF : 0 )
             
             pc += 1
 
         case .lst16:
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
 
-            try pStack.push8( b < a ? 0xFF : 0 )
+            try sourceStack.push8( b < a ? 0xFF : 0 )
             
             pc += 1
 
 //        case .neg16:
-//            let a = try pStack.pop16()
-//            try pStack.push8( a == 0 ? 0xFF : 0 )
+//            let a = try sourceStack.pop16()
+//            try sourceStack.push8( a == 0 ? 0xFF : 0 )
 //
 //            pc += 1
         
@@ -687,46 +686,46 @@ class CPU {
             pc = try sourceStack.pop16()
 
         case .jnz16: /// conditional (not zero) absolute jump
-            let a = try pStack.pop16()
-            let b = try pStack.pop8()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop8()
 
             pc = (b == 0) ? pc + 1 : a
             
         case .jsr16:  /// jump to subroutine at absolute address, first storing the return address on the return stack
-            let a = try pStack.pop16()
+            let a = try sourceStack.pop16()
             
             /// store the current pc 16 bit address as 2 x 8 bits on the return stack, msb first
-            try rStack.push16(pc+1)
+            try targetStack.push16(pc+1)
             
             pc = a
             
         // NOTE: Test these
         case .lda16:  // load the short at the given absolute address onto the top of the parameter stack.
-            let a = try pStack.pop16()
-            try pStack.push16(sys.mmu.read16(address: a))
+            let a = try sourceStack.pop16()
+            try sourceStack.push16(sys.mmu.read16(address: a))
             pc += 1
             
         case .sta16:  // ( value addr -- ) store the short on top of the parameter stack to the given absolute address.
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
             sys.mmu.write16(value: b, address: a)
             pc += 1
             
         case .ldr16:  // load the short at the given relative address onto the top of the parameter stack.
-            let a = try pStack.pop16()
-            try pStack.push16(sys.mmu.read16(address: pc + a))
+            let a = try sourceStack.pop16()
+            try sourceStack.push16(sys.mmu.read16(address: pc + a))
             pc += 1
             
         case .str16: // ( value addr -- ) store the short on top of the parameter stack to the given relative address.
-            let a = try pStack.pop16()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop16()
+            let b = try sourceStack.pop16()
             sys.mmu.write16(value: b, address: pc + a)
             pc += 1
 
 
         case .bso16: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
-            let a = try pStack.pop8()
-            let b = try pStack.pop16()
+            let a = try sourceStack.pop8()
+            let b = try sourceStack.pop16()
             
             if let bus = sys.bus[Int(a >> 4)] {
                 bus.write16(a: a, b: b)
