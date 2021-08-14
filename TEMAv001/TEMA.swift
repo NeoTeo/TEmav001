@@ -272,6 +272,8 @@ class CPU {
         }
     }
     
+    var dbgTickCount = 0
+    
     func clockTick() throws {
         
         guard pc > 0 else { return }
@@ -295,7 +297,8 @@ class CPU {
         if pc == 38 {
             print("stop")
         }
-        print("clockTick read opcode: \(String(describing: op)) at pc \(pc)")
+        dbgTickCount += 1
+        print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil {
             print("ffs")
         }
@@ -324,7 +327,7 @@ class CPU {
             try pStack.push8(try pStack.last8())
             pc += 1
             
-        case .ovr:
+        case .ovr: // ( b a -- b a b )
 
             let a = try pStack.pop8()
             let b = try pStack.pop8()
@@ -335,7 +338,7 @@ class CPU {
             
             pc += 1
             
-        case .rot:
+        case .rot: // ( c b a -- b a c )
             
             let a = try pStack.pop8()
             let b = try pStack.pop8()
@@ -357,7 +360,8 @@ class CPU {
             pc += 1
 
         case .sts:  // stack to stack transfer
-            let a = try sourceStack.pop8()
+            let a = copyFlag ? try sourceStack.last8() : try sourceStack.pop8()
+//            let a = try sourceStack.pop8()
             try targetStack.push8(a)
             
             pc += 1
@@ -418,7 +422,7 @@ class CPU {
             try pStack.push8( b ^ a )
             pc += 1
             
-        case .shi: // ( bitshift value -- result )
+        case .shi: // ( value bitshift -- result )
             let a = try pStack.pop8()
             let b = try pStack.pop8()
             /// use the three least significant bits of the most significant nibble of a to shift up by 0 to 7 bits (the max needed for a byte) and
@@ -484,7 +488,7 @@ class CPU {
             pc = UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))
             
         // memory operations
-// NOTE:           write 16 bit versions
+// NOTE:           write 16 bit versions and use the sourcestack to allow use of the returnstack given the flag setting.
         case .lda:  // load the byte at the given absolute address onto the top of the parameter stack.
             let a = try pStack.pop16()
             try pStack.push8(sys.mmu.read(address: a))
@@ -572,7 +576,8 @@ class CPU {
             pc += 1
             
         case .sts16: // stack to stack transfer
-            let a = try sourceStack.pop16()
+//            let a = try sourceStack.pop16()
+            let a = copyFlag ? try sourceStack.last16() : try sourceStack.pop16()
             try targetStack.push16(a)
             
             pc += 1
@@ -633,7 +638,7 @@ class CPU {
             try pStack.push16( b ^ a )
             pc += 1
             
-        case .shi16: // ( bitshift value -- result )
+        case .shi16: // ( value bitshift -- result )
             let a = try pStack.pop8()
             let b = try pStack.pop16()
             /// use the four least significant bits of the most significant nibble of a to shift up by 0 to f bits (the max needed for a short) and
