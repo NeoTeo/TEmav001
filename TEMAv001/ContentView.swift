@@ -19,7 +19,6 @@ fileprivate let tickAllocation = targetTEMAVirtualHz / targetPPUHz      // the n
 struct ContentView: View {
     
     @State private var windowDims = CGSize(width: winWidth, height: winHeight)
-
     let cycleQ = DispatchQueue.global(qos: .userInitiated)
     
     var system: System
@@ -31,6 +30,7 @@ struct ContentView: View {
     
     @State var displayBus: Bus?
 
+    @State var viewScale = 1.0
     
     let objPath = "/Users/teo/Downloads/"
     
@@ -118,79 +118,6 @@ struct ContentView: View {
         cycleQ.asyncAfter(deadline: nCycle, qos: .userInteractive, execute: TEmuCycle)
     }
     
-    @MainActor
-    func TEmuCycle2() {
-    
-        // set pc to 0x100 for first run (bodge)
-        if debugTestFirstRun == true { system.cpu.pc = 0x100 ; debugTestFirstRun = false }
-        
-        /// step through ram and execute allocated number of opcodes
-        system.cpu.run(ticks: tickAllocation)
-        DispatchQueue.main.async {
-        if fpsTimes == 30 {
-            fpsTimes = 0
-            fps = (nanosPerSecond / (cyclesSeq / 30)) //>> 6
-            cyclesSeq = 0
-        }
-        
-            fpsTimes += 1
-        }
-        
-        
-        
-        ppu.refresh()
-        
-        let nowTime = DispatchTime.now()
-        /// nanodelta is the number of nanoseconds the last emu cycle has taken
-        let nanodelta = Int(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
-        DispatchQueue.main.async {
-        prevTime = nowTime
-//        fps = nanosPerSecond / nanodelta
-        // add up cycle timings for an average every second.
-        cyclesSeq += nanodelta
-        }
-    }
-
-    var _body: some View {
-
-        VStack {
-            HStack {
-                if displayBus == nil {
-                    Button("Run TEMA") {
-                        displayBus = system.registerBus(id: .display, name: "screen", comms: displayComms)
-                        Task.init(priority: .high) {
-                            TEmuCycle()
-                        }
-                    }
-                }
-                
-                HStack {
-                    Text("TEMAv1")
-                        .onTapGesture {
-                            system.mmu.debugInit()
-                        }
-                    Text("cpu rate: \(cycleRate)").monospacedDigit()
-                    Text("fps: \(fps)").monospacedDigit()
-                }
-            }
-        if ppu.display != nil {
-            TimelineView(.animation) { _ in
-//            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
-                
-            Canvas { context, size in
-                
-                TEmuCycle2()
-                
-                let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
-                context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
-                
-            }//.compositingGroup()
-//                .frame(width: windowDims.width, height: windowDims.height)
-            }
-        }
-        }
-            .frame(width: windowDims.width, height: windowDims.height)
-    }
     
     var body: some View {
 
@@ -212,20 +139,24 @@ struct ContentView: View {
                         }
                     Text("cpu rate: \(cycleRate)").monospacedDigit()
                     Text("fps: \(fps)").monospacedDigit()
+                    Button("2x") {
+                        viewScale = viewScale == 1 ? 0.5 : 1
+                        windowDims.width = windowDims.width == 640 ? 1280 : 640
+                        windowDims.height = windowDims.height == 480 ? 960 : 480
+                    }
                 }
             }
-        if ppu.display != nil {
-//            TimelineView(.animation) {_ in
-//            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
-            Canvas { context, size in
-                let disp = context.resolve(Image(ppu.display!, scale: 1, label: Text("raster display")))
-                context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
-                
-            }//.compositingGroup()
-//                .frame(width: windowDims.width, height: windowDims.height)
+            if ppu.display != nil {
+    //            TimelineView(.animation) {_ in
+    //            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
+                Canvas { context, size in
+                    let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")))
+                    context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
+                }
             }
 //        }
         }
+//        .frame(minWidth: windowDims.width, minHeight: windowDims.height)
             .frame(width: windowDims.width, height: windowDims.height)
     }
     
