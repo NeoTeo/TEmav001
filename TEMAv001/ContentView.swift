@@ -159,6 +159,7 @@ struct ContentView: View {
             }
 //        }
         }
+            .background(KeyEventHandling())
 //        .frame(minWidth: windowDims.width, minHeight: windowDims.height)
             .frame(width: windowDims.width, height: windowDims.height)
     }
@@ -271,6 +272,26 @@ class PPU: ObservableObject {
             self.display = img
             if self.display == nil { fatalError("display is nil") }
         }
+    }
+}
+
+struct KeyEventHandling: NSViewRepresentable {
+    class KeyView: NSView {
+        override var acceptsFirstResponder: Bool { true }
+        override func keyDown(with event: NSEvent) {
+            print(">> key \(event.charactersIgnoringModifiers ?? "")")
+        }
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = KeyView()
+        DispatchQueue.main.async { // wait till next event cycle
+            view.window?.makeFirstResponder(view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
     }
 }
 
