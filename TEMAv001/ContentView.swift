@@ -30,8 +30,15 @@ struct ContentView: View {
     
     @State var displayBus: Bus?
 
+    @State var scaleLabel = "2x"
     @State var viewScale = 1.0
+    @State var prevTime: DispatchTime = DispatchTime.now()
+    @State var debugTestFirstRun = true
     
+
+    @State var fpsTimes: Int = 0
+    @State var cyclesSeq: Int = 0
+
     let objPath = "/Users/teo/Downloads/"
     
     init() {
@@ -51,7 +58,7 @@ struct ContentView: View {
             let colIdx = bus.read(a: 0xE)
             ppu.pixelBuffer[y*winWidth+x] = colIdx
             
-            print("set a pixel at \(x),\(y)")
+            //print("set a pixel at \(x),\(y)")
         }
     }
         
@@ -70,14 +77,7 @@ struct ContentView: View {
                 print("Data load error \(error)")
             }
     }
-    
-    @State var prevTime: DispatchTime = DispatchTime.now()
-    @State var debugTestFirstRun = true
-    
-
-    @State var fpsTimes: Int = 0
-    @State var cyclesSeq: Int = 0
-    
+        
     func TEmuCycle() {
     
         // set pc to 0x100 for first run (bodge)
@@ -139,10 +139,13 @@ struct ContentView: View {
                         }
                     Text("cpu rate: \(cycleRate)").monospacedDigit()
                     Text("fps: \(fps)").monospacedDigit()
-                    Button("2x") {
-                        viewScale = viewScale == 1 ? 0.5 : 1
-                        windowDims.width = windowDims.width == 640 ? 1280 : 640
-                        windowDims.height = windowDims.height == 480 ? 960 : 480
+                    Button(scaleLabel) {
+                        let twox = scaleLabel == "2x"
+                        
+                        scaleLabel = twox ? "1x" : "2x"
+                        viewScale = twox ? 0.5 : 1
+                        windowDims.width = twox ? 1280 : 640
+                        windowDims.height = twox ? 960 : 480
                     }
                 }
             }
