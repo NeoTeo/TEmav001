@@ -21,7 +21,7 @@ struct ContentView: View {
     @State private var windowDims = CGSize(width: winWidth, height: winHeight)
     let cycleQ = DispatchQueue.global(qos: .userInitiated)
     
-    var system: System
+    var tema: System
     @ObservedObject
     var ppu: PPU
 
@@ -29,7 +29,8 @@ struct ContentView: View {
     @State var cycleRate: Int = 0
     
     @State var displayBus: Bus?
-
+    @State var consoleBus: Bus?
+    
     @State var scaleLabel = "2x"
     @State var viewScale = 1.0
     @State var prevTime: DispatchTime = DispatchTime.now()
@@ -42,7 +43,7 @@ struct ContentView: View {
     let objPath = "/Users/teo/Downloads/"
     
     init() {
-        system = System()
+        tema = System()
         ppu = PPU(width: winWidth, height: winHeight)
         loadMemory(filepath: objPath + "test.teo")
     }
@@ -53,15 +54,34 @@ struct ContentView: View {
        
     func displayComms(bus: Bus, a: UInt8, b: UInt8) {
         if b != 0 && (a == 0xe) {
-            let x = Int(bus.read16(a: 0x8))
-            let y = Int(bus.read16(a: 0xA))
-            let colIdx = bus.read(a: 0xE)
+            let x = Int(bus.busRead16(a: 0x8))
+            let y = Int(bus.busRead16(a: 0xA))
+            let colIdx = bus.busRead(a: 0xE)
             ppu.pixelBuffer[y*winWidth+x] = colIdx
             
             //print("set a pixel at \(x),\(y)")
         }
     }
-        
+    
+    // a encodes the device id in its most significant nibble and a port address in its lsn
+    // b is non zero when there is data to write
+    func consoleComms(bus: Bus, a: UInt8, b: UInt8) {
+        if (b != 0) && (a > 0x7) {
+            if (a - 0x7) == 1 {
+                let char = Array(arrayLiteral: bus.buffer[Int(a)])
+                if let dat = String(bytes: char , encoding: .ascii)?.data(using: .ascii) {
+                    try? FileHandle.standardOutput.write(contentsOf: dat)
+                }
+            } else {
+                let dat = FileHandle.standardInput.readData(ofLength: 1)
+                if let chars = String(data: dat, encoding: .utf8)?.utf8 {
+                    bus.buffer[Int(a)] = [UInt8](chars)[0]
+                }
+            }
+        }
+    }
+    
+    
     func loadMemory(filepath: String) {
         
             do {
@@ -71,7 +91,7 @@ struct ContentView: View {
                 }
                 
                 let binary = try Data(contentsOf: URL(fileURLWithPath: filepath), options: .mappedIfSafe)
-                try system.loadRam(destAddr: 0x0, ram: Array(binary))
+                try tema.loadRam(destAddr: 0x0, ram: Array(binary))
 
             } catch {
                 print("Data load error \(error)")
@@ -81,10 +101,10 @@ struct ContentView: View {
     func TEmuCycle() {
     
         // set pc to 0x100 for first run (bodge)
-        if debugTestFirstRun == true { system.cpu.pc = 0x100 ; debugTestFirstRun = false }
+        if debugTestFirstRun == true { tema.cpu.pc = 0x100 ; debugTestFirstRun = false }
         
         /// step through ram and execute allocated number of opcodes
-        system.cpu.run(ticks: tickAllocation)
+        tema.cpu.run(ticks: tickAllocation)
         
         if fpsTimes == 30 {
             fpsTimes = 0
@@ -125,7 +145,8 @@ struct ContentView: View {
             HStack {
                 if displayBus == nil {
                     Button("Run TEMA") {
-                        displayBus = system.registerBus(id: .display, name: "screen", comms: displayComms)
+                        displayBus = tema.registerBus(id: .display, name: "screen", comms: displayComms)
+                        consoleBus = tema.registerBus(id: .console, name: "console", comms: consoleComms)
                         Task.init(priority: .high) {
                             TEmuCycle()
                         }
@@ -135,7 +156,20 @@ struct ContentView: View {
                 HStack {
                     Text("TEMAv1")
                         .onTapGesture {
-                            system.mmu.debugInit()
+                            
+                            if let cb = consoleBus {
+                                // 0x2 is read port
+                                cb.buffer[0x2] = 0x42
+                                let intvec = read16(mem: &cb.buffer, address: 0)
+                                tema.cpu.interruptEnable(vec: intvec)
+                            }
+                            
+                            // test to see if writing to stdout actually displays. It does.
+//                            let data = Data([68])
+//                            if let dat = String(bytes: data , encoding: .ascii)?.data(using: .ascii) {
+//                            try? FileHandle.standardOutput.write(contentsOf: dat)
+//                            }
+                            //tema.mmu.debugInit()
                         }
                     Text("cpu rate: \(cycleRate)").monospacedDigit()
                     Text("fps: \(fps)").monospacedDigit()
@@ -159,9 +193,20 @@ struct ContentView: View {
             }
 //        }
         }
-            .background(KeyEventHandling())
+        .background(myKeyEventHandler())
+//            .background(KeyEventHandling())
 //        .frame(minWidth: windowDims.width, minHeight: windowDims.height)
             .frame(width: windowDims.width, height: windowDims.height)
+    }
+    
+    func myKeyEventHandler() -> some View {
+//        if let cb = consoleBus {
+//            cb.buffer[0x2] = 0x42
+//            let val = read16(mem: &cb.buffer, address: 0)
+//            tema.cpu.interruptEnable(vec: val)
+//        }
+
+        return KeyEventHandling()
     }
     
     func debugOK(x: UInt16, y: UInt16) {

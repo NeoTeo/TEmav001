@@ -59,6 +59,8 @@ class System {
 class Bus {
     let owner: System
     let comms: ((Bus, UInt8, UInt8)->(Void))
+    // The position in the buffer represents a particular "port" for the device we're communicating with
+    // eg. on a console bus 0x2 is the read port and 0x8 is write port.
     var buffer = [UInt8](repeating: 0, count: 16)
     
     enum Device: UInt8 {
@@ -77,24 +79,25 @@ class Bus {
         self.comms = comms
     }
     
-    func read(a: UInt8) -> UInt8 {
+    
+    func busRead(a: UInt8) -> UInt8 {
         comms(self, a & 0x0F, 0)
         return buffer[Int(a & 0xF)]
     }
     
-    func read16(a: UInt8) -> UInt16 {
-        return UInt16(read(a: a)) << 8 | UInt16(read(a: a + 1))
+    func busRead16(a: UInt8) -> UInt16 {
+        return UInt16(busRead(a: a)) << 8 | UInt16(busRead(a: a + 1))
     }
     
-    func write(a: UInt8, b: UInt8) {
+    func busWrite(a: UInt8, b: UInt8) {
         buffer[Int(a & 0xF)] = b
         comms(self, a & 0x0F, 1)
         // MARK: confirm that the 0 is not needed in the 0x0F
     }
     
-    func write16(a: UInt8, b: UInt16) {
-        write(a:a, b: UInt8(b >> 8))
-        write(a:a+1, b: UInt8(b & 0xFF))
+    func busWrite16(a: UInt8, b: UInt16) {
+        busWrite(a:a, b: UInt8(b >> 8))
+        busWrite(a:a+1, b: UInt8(b & 0xFF))
     }
 }
 
@@ -239,6 +242,7 @@ class CPU {
     
     enum CPUError: Error {
     case missingParameters
+        case pcBrk
     }
     
     /// Parameter stack, 256 bytes, unsigned
@@ -272,11 +276,27 @@ class CPU {
         }
     }
     
+    var interruptMasterEnable: Bool = false
+    var interruptVector: UInt16?
+    func interruptEnable(vec: UInt16) {
+        interruptVector = vec
+        interruptMasterEnable = true
+    }
+    
     var dbgTickCount = 0
     
     func clockTick() throws {
         
-        guard pc > 0 else { return }
+        // handle interrupt request
+        // MARK: Currently it is possible to interrupt the interrupt. Fix this.
+        if interruptMasterEnable == true, let iv = interruptVector {
+            interruptMasterEnable = false
+            try rStack.push16(pc)
+            pc = iv
+            interruptVector = nil
+        }
+        
+        guard pc > 0 else { throw CPUError.pcBrk }
         
         /// since we're limiting the number of opcodes to 32 we are only using the bottom 5 bits.
         /// We can use the top three as flags for byte or short ops, copy rather than pop, and return from jump.
@@ -294,11 +314,11 @@ class CPU {
         
         /// include the short flag in the opcode memory 
         let op = OpCode(rawValue: memval & 0x3F)
-        if pc == 38 {
+        if dbgTickCount == 16736 {
             print("stop")
         }
         dbgTickCount += 1
-        print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
+        //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil { fatalError("op is nil") }
         do {
         switch op {
@@ -514,12 +534,12 @@ class CPU {
             let a = try sourceStack.pop8()
             pc += 1
     
-        case .bso: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
+        case .bso: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer (the port) that b is placed
             let a = try sourceStack.pop8()
             let b = try sourceStack.pop8()
 
             if let bus = sys.bus[Int(a >> 4)] {
-                bus.write(a: a, b: b)
+                bus.busWrite(a: a, b: b)
             }
             pc += 1
             
@@ -728,7 +748,7 @@ class CPU {
             let b = try sourceStack.pop16()
             
             if let bus = sys.bus[Int(a >> 4)] {
-                bus.write16(a: a, b: b)
+                bus.busWrite16(a: a, b: b)
             }
             pc += 1
             
@@ -985,4 +1005,21 @@ class MMU {
     func read(address: UInt16) -> UInt8 {
         return bank[Int(address)]
     }
+}
+
+func write16(mem: inout [UInt8], value: UInt16, address: UInt16) {
+    write(mem: &mem, value: UInt8(value >> 8), address: address)
+    write(mem: &mem, value: UInt8(value & 0xFF), address: address+1)
+}
+
+func write(mem: inout [UInt8], value: UInt8, address: UInt16) {
+    mem[Int(address)] = value
+}
+
+func read16(mem: inout [UInt8], address: UInt16) -> UInt16 {
+    return (UInt16(mem[Int(address)]) << 8) | UInt16(mem[Int(address+1)])
+}
+
+func read(mem: inout [UInt8], address: UInt16) -> UInt8 {
+    return mem[Int(address)]
 }
