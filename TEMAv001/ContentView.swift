@@ -156,14 +156,7 @@ struct ContentView: View {
                 HStack {
                     Text("TEMAv1")
                         .onTapGesture {
-                            
-                            if let cb = consoleBus {
-                                // 0x2 is read port
-                                cb.buffer[0x2] = 0x42
-                                let intvec = read16(mem: &cb.buffer, address: 0)
-                                tema.cpu.interruptEnable(vec: intvec)
-                            }
-                            
+                                                        
                             // test to see if writing to stdout actually displays. It does.
 //                            let data = Data([68])
 //                            if let dat = String(bytes: data , encoding: .ascii)?.data(using: .ascii) {
@@ -193,11 +186,22 @@ struct ContentView: View {
             }
 //        }
         }
+        .onChange(of: key) { newval in
+            print("key changed to \(key)")
+            if let cb = consoleBus, let chars = key?.utf8 {
+                // 0x2 is read port
+                cb.buffer[0x2] = UInt8(Array(chars)[0])
+                let intvec = read16(mem: &cb.buffer, address: 0)
+                tema.cpu.interruptEnable(vec: intvec)
+            }
+        }
         .background(myKeyEventHandler())
 //            .background(KeyEventHandling())
 //        .frame(minWidth: windowDims.width, minHeight: windowDims.height)
             .frame(width: windowDims.width, height: windowDims.height)
     }
+    
+    @State var key: String?
     
     func myKeyEventHandler() -> some View {
 //        if let cb = consoleBus {
@@ -206,7 +210,7 @@ struct ContentView: View {
 //            tema.cpu.interruptEnable(vec: val)
 //        }
 
-        return KeyEventHandling()
+        return KeyEventHandling(keys: $key)
     }
     
     func debugOK(x: UInt16, y: UInt16) {
@@ -321,15 +325,31 @@ class PPU: ObservableObject {
 }
 
 struct KeyEventHandling: NSViewRepresentable {
+    
+    @Binding var keys: String?
+    
     class KeyView: NSView {
+        @Binding var keys: String?
+        
+        init(keys: Binding<String?>) {
+            
+            _keys = keys
+            super.init(frame: .zero)
+        }
+        
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+        
         override var acceptsFirstResponder: Bool { true }
         override func keyDown(with event: NSEvent) {
-            print(">> key \(event.charactersIgnoringModifiers ?? "")")
+            //print(">> key \(event.charactersIgnoringModifiers ?? "")")
+            keys = event.charactersIgnoringModifiers
         }
     }
 
     func makeNSView(context: Context) -> NSView {
-        let view = KeyView()
+        let view = KeyView(keys: $keys)
         DispatchQueue.main.async { // wait till next event cycle
             view.window?.makeFirstResponder(view)
         }
@@ -337,6 +357,7 @@ struct KeyEventHandling: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
+        //print("updateNSview")
     }
 }
 

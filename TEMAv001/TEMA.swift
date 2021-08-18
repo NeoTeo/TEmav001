@@ -532,6 +532,9 @@ class CPU {
             
         case .bsi:
             let a = try sourceStack.pop8()
+            if let bus = sys.bus[Int(a >> 4)] {
+                try sourceStack.push8(bus.busRead(a: a))
+            }
             pc += 1
     
         case .bso: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer (the port) that b is placed
@@ -742,6 +745,12 @@ class CPU {
             sys.mmu.write16(value: b, address: pc + a)
             pc += 1
 
+        case .bsi16: // NB: untested
+            let a = try sourceStack.pop8()
+            if let bus = sys.bus[Int(a >> 4)] {
+                try sourceStack.push16(bus.busRead16(a: a))
+            }
+            pc += 1
 
         case .bso16: /// the  most significant nibble in a is the bus id and the lsn is the position in the bus.buffer that b is placed
             let a = try sourceStack.pop8()
