@@ -314,7 +314,7 @@ class CPU {
         
         /// include the short flag in the opcode memory 
         let op = OpCode(rawValue: memval & 0x3F)
-        if dbgTickCount == 16736 {
+        if dbgTickCount == 8053 {
             print("stop")
         }
         dbgTickCount += 1
@@ -509,6 +509,7 @@ class CPU {
         // memory operations
 // NOTE:           write 16 bit versions and use the sourcestack to allow use of the returnstack given the flag setting.
         case .lda:  // load the byte at the given absolute address onto the top of the parameter stack.
+//            let a = copyFlag ? try sourceStack.last16() : try sourceStack.pop16()
             let a = try sourceStack.pop16()
             try sourceStack.push8(sys.mmu.read(address: a))
             pc += 1
@@ -520,7 +521,7 @@ class CPU {
             pc += 1
             
         case .ldr:  // load the byte at the given relative address onto the top of the parameter stack.
-            let a = try sourceStack.pop8()
+            let a = try sourceStack.pop8()              
             try sourceStack.push8(sys.mmu.read(address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))))
             pc += 1
             
@@ -735,14 +736,14 @@ class CPU {
             pc += 1
             
         case .ldr16:  // load the short at the given relative address onto the top of the parameter stack.
-            let a = try sourceStack.pop16()
-            try sourceStack.push16(sys.mmu.read16(address: pc + a))
+            let a = try sourceStack.pop8()
+            try sourceStack.push16(sys.mmu.read16(address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))))
             pc += 1
             
         case .str16: // ( value addr -- ) store the short on top of the parameter stack to the given relative address.
-            let a = try sourceStack.pop16()
+            let a = try sourceStack.pop8()
             let b = try sourceStack.pop16()
-            sys.mmu.write16(value: b, address: pc + a)
+            sys.mmu.write16(value: b, address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a))))
             pc += 1
 
         case .bsi16: // NB: untested
