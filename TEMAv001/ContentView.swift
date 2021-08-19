@@ -260,10 +260,10 @@ class PPU: ObservableObject {
     private let bytesPerRow = winWidth
     private let bitsPerPixel = 8
     
-    private let clut: [UInt8] =     [0xE0, 0xF8, 0xD0,
-                                     0x88, 0xC0, 0x70,
-                                     0x34, 0x68, 0x56,
-                                     0x8, 0x18, 0x20]
+    private let clut: [UInt8] =     [0xFF, 0xFF, 0xFF,  // r, g, b
+                                     0x8C, 0xDB, 0xC4,
+                                     0x00, 0x00, 0x00,
+                                     0xFF, 0xC6, 0x33]
 
     private var imageDataProvider: CGDataProvider!
     private var colorSpace: CGColorSpace!
@@ -282,26 +282,26 @@ class PPU: ObservableObject {
         imageDataProvider = CGDataProvider(data: Data(pixelBuffer) as NSData)
         guard imageDataProvider != nil else { fatalError("PPU init failed with nil imageDataProvider") }
         colorSpace = CGColorSpace(indexedBaseSpace: CGColorSpaceCreateDeviceRGB(),
-                                  last: 3,
+                                  last: (clut.count/3)-1,
                                   colorTable: UnsafePointer<UInt8>(clut))
         guard colorSpace != nil else { fatalError("PPU init failed with nil colorSpace") }
-
+        
     }
-    
+        
     func refresh() {
 
         imageDataProvider = CGDataProvider(data: Data(pixelBuffer) as NSData)
         let img = CGImage(width: self.horizontalPixels,
                             height: self.verticalPixels,
-                        bitsPerComponent: 8,
+                            bitsPerComponent: 8,
                             bitsPerPixel: self.bitsPerPixel,
                             bytesPerRow: self.bytesPerRow,
                             space: self.colorSpace!,
-                        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
                             provider: self.imageDataProvider!,
-                        decode: nil,
-                        shouldInterpolate: false,
-                        intent: CGColorRenderingIntent.defaultIntent)
+                            decode: nil,
+                            shouldInterpolate: false,
+                            intent: CGColorRenderingIntent.defaultIntent)
         
         DispatchQueue.main.async {
             self.display = img
