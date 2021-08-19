@@ -314,7 +314,7 @@ class CPU {
         
         /// include the short flag in the opcode memory 
         let op = OpCode(rawValue: memval & 0x3F)
-        if dbgTickCount == 8053 {
+        if dbgTickCount == 8050 {
             print("stop")
         }
         dbgTickCount += 1
@@ -521,7 +521,7 @@ class CPU {
             pc += 1
             
         case .ldr:  // load the byte at the given relative address onto the top of the parameter stack.
-            let a = try sourceStack.pop8()              
+            let a = try sourceStack.pop8()
             try sourceStack.push8(sys.mmu.read(address: UInt16(bitPattern: Int16(bitPattern: pc) + Int16(Int8(bitPattern: a)))))
             pc += 1
             

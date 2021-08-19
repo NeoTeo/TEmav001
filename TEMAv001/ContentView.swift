@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+import Combine
+
+fileprivate let keysPublisher = PassthroughSubject<String, Never>()
 
 // Constants
 fileprivate let winWidth = 640
@@ -15,6 +18,8 @@ fileprivate let targetPPUHz = 60                                        // the t
 fileprivate let nanoPPURate = nanosPerSecond / targetPPUHz              // The number of nanoseconds in each ppu tick
 fileprivate let targetTEMAVirtualHz = 4_000_000                         // the target Hz of TEMA
 fileprivate let tickAllocation = targetTEMAVirtualHz / targetPPUHz      // the number of ticks each TEMA run gets per ppu tick
+
+
 
 struct ContentView: View {
     
@@ -186,31 +191,16 @@ struct ContentView: View {
             }
 //        }
         }
-        .onChange(of: key) { newval in
-            print("key changed to \(key)")
-            if let cb = consoleBus, let chars = key?.utf8 {
-                // 0x2 is read port
-                cb.buffer[0x2] = UInt8(Array(chars)[0])
+        .onReceive(keysPublisher) { keys in
+            if let cb = consoleBus {
+                
+                cb.buffer[0x2] = UInt8(Array(keys.utf8)[0])
                 let intvec = read16(mem: &cb.buffer, address: 0)
                 tema.cpu.interruptEnable(vec: intvec)
             }
         }
-        .background(myKeyEventHandler())
-//            .background(KeyEventHandling())
-//        .frame(minWidth: windowDims.width, minHeight: windowDims.height)
+            .background(KeyEventHandling())
             .frame(width: windowDims.width, height: windowDims.height)
-    }
-    
-    @State var key: String?
-    
-    func myKeyEventHandler() -> some View {
-//        if let cb = consoleBus {
-//            cb.buffer[0x2] = 0x42
-//            let val = read16(mem: &cb.buffer, address: 0)
-//            tema.cpu.interruptEnable(vec: val)
-//        }
-
-        return KeyEventHandling(keys: $key)
     }
     
     func debugOK(x: UInt16, y: UInt16) {
@@ -263,10 +253,6 @@ struct ContentView: View {
         ppu.pixelBuffer = buf
     }
 }
-
-let bootROM: [CPU.OpCode] = [
-    .pop, .lit //,.bla, .bla
-]
 
 /// Pixel processing unit
 class PPU: ObservableObject {
@@ -326,30 +312,17 @@ class PPU: ObservableObject {
 
 struct KeyEventHandling: NSViewRepresentable {
     
-    @Binding var keys: String?
-    
     class KeyView: NSView {
-        @Binding var keys: String?
-        
-        init(keys: Binding<String?>) {
-            
-            _keys = keys
-            super.init(frame: .zero)
-        }
-        
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-        
         override var acceptsFirstResponder: Bool { true }
         override func keyDown(with event: NSEvent) {
-            //print(">> key \(event.charactersIgnoringModifiers ?? "")")
-            keys = event.charactersIgnoringModifiers
+            print(">> key \(event.charactersIgnoringModifiers ?? "")")
+            let keys = event.charactersIgnoringModifiers
+            keysPublisher.send(keys!)
         }
     }
 
     func makeNSView(context: Context) -> NSView {
-        let view = KeyView(keys: $keys)
+        let view = KeyView()
         DispatchQueue.main.async { // wait till next event cycle
             view.window?.makeFirstResponder(view)
         }
