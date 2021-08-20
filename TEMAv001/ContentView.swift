@@ -16,7 +16,7 @@ fileprivate let winHeight = 480
 fileprivate let nanosPerSecond = 1_000_000_000                          // number of nanoseconds in a second
 fileprivate let targetPPUHz = 60                                        // the target Hz of the ppu
 fileprivate let nanoPPURate = nanosPerSecond / targetPPUHz              // The number of nanoseconds in each ppu tick
-fileprivate let targetTEMAVirtualHz = 4_000_000                         // the target Hz of TEMA
+fileprivate let targetTEMAVirtualHz = 1_000_000                         // the target Hz of TEMA
 fileprivate let tickAllocation = targetTEMAVirtualHz / targetPPUHz      // the number of ticks each TEMA run gets per ppu tick
 
 
