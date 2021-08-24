@@ -11,8 +11,8 @@ import Combine
 fileprivate let keysPublisher = PassthroughSubject<String, Never>()
 
 // Constants
-fileprivate let winWidth = 640
-fileprivate let winHeight = 480
+fileprivate let ppuWidth = 640
+fileprivate let ppuHeight = 480
 fileprivate let nanosPerSecond = 1_000_000_000                          // number of nanoseconds in a second
 fileprivate let targetPPUHz = 60                                        // the target Hz of the ppu
 fileprivate let nanoPPURate = nanosPerSecond / targetPPUHz              // The number of nanoseconds in each ppu tick
@@ -23,7 +23,7 @@ fileprivate let tickAllocation = targetTEMAVirtualHz / targetPPUHz      // the n
 
 struct ContentView: View {
     
-    @State private var windowDims = CGSize(width: winWidth, height: winHeight)
+    @State private var windowDims = CGSize(width: ppuWidth, height: ppuHeight)
     let cycleQ = DispatchQueue.global(qos: .userInitiated)
     
     var tema: System
@@ -49,7 +49,7 @@ struct ContentView: View {
     
     init() {
         tema = System()
-        ppu = PPU(width: winWidth, height: winHeight)
+        ppu = PPU(width: ppuWidth, height: ppuHeight)
         loadMemory(filepath: objPath + "test.teo")
     }
     
@@ -62,7 +62,7 @@ struct ContentView: View {
             let x = Int(bus.busRead16(a: 0x8))
             let y = Int(bus.busRead16(a: 0xA))
             let colIdx = bus.busRead(a: 0xE)
-            ppu.pixelBuffer[y*winWidth+x] = colIdx
+            ppu.pixelBuffer[y*ppuWidth+x] = colIdx
             
             //print("set a pixel at \(x),\(y)")
         }
@@ -118,14 +118,12 @@ struct ContentView: View {
         }
         fpsTimes += 1
         
-        
         ppu.refresh()
         
         let nowTime = DispatchTime.now()
         /// nanodelta is the number of nanoseconds the last emu cycle has taken
         let nanodelta = Int(nowTime.uptimeNanoseconds - prevTime.uptimeNanoseconds)
         prevTime = nowTime
-//        fps = nanosPerSecond / nanodelta
         // add up cycle timings for an average every second.
         cyclesSeq += nanodelta
         
@@ -133,13 +131,9 @@ struct ContentView: View {
         let arse = nanoPPURate-nanodelta
         
         let newcyc = arse < 0 ? nanoPPURate + arse : nanoPPURate
-//        print("newcyc is \(newcyc)")
-//        let nextCycle = DispatchTime.now().advanced(by: DispatchTimeInterval.nanoseconds(newcyc))
         let nCycle = DispatchTime.now().advanced(by: .nanoseconds(newcyc))
-        if newcyc > nanoPPURate {
-            print("WTF")
-            
-        }
+        if newcyc > nanoPPURate { fatalError("newcyc is > nonPPURate") }
+        
         cycleQ.asyncAfter(deadline: nCycle, qos: .userInteractive, execute: TEmuCycle)
     }
     
@@ -150,8 +144,26 @@ struct ContentView: View {
             HStack {
                 if displayBus == nil {
                     Button("Run TEMA") {
-                        displayBus = tema.registerBus(id: .display, name: "screen", comms: displayComms)
+                        
                         consoleBus = tema.registerBus(id: .console, name: "console", comms: consoleComms)
+                        // The display bus assumes the following port mappings:
+                        // 0x00 interrupt vector
+                        // 0x02 display width
+                        // 0x04 display height
+                        // 0x08 x coordinate
+                        // 0x0A y coordinate
+                        // 0x0C address for DMA
+                        // 0x0E clut index
+                        
+                        displayBus = tema.registerBus(id: .display, name: "screen", comms: displayComms)
+                        
+                        // If we have a display, pass its resolution to TEma
+                        if displayBus != nil {
+                            // ports 0x2 and 0x4 represent the width and height of the TEma display.
+                            write16(mem: &displayBus!.buffer, value: UInt16(ppuWidth), address: 0x2)
+                            write16(mem: &displayBus!.buffer, value: UInt16(ppuHeight), address: 0x4)
+                        }
+                        
                         Task.init(priority: .high) {
                             TEmuCycle()
                         }
@@ -193,77 +205,28 @@ struct ContentView: View {
         }
         .onReceive(keysPublisher) { keys in
             if let cb = consoleBus {
-                
+                // 0x2 is the read "port" of the console bus buffer, where TEma reads new console data from.
                 cb.buffer[0x2] = UInt8(Array(keys.utf8)[0])
-                let intvec = read16(mem: &cb.buffer, address: 0)
-                tema.cpu.interruptEnable(vec: intvec)
+                // MARK: exec this on a serial queue to avoid concurrency issues.
+                tema.cpu.interruptEnable(bus: cb)
             }
         }
             .background(KeyEventHandling())
             .frame(width: windowDims.width, height: windowDims.height)
-    }
-    
-    func debugOK(x: UInt16, y: UInt16) {
-        var buf = [UInt8](repeating: 0, count: winWidth * winHeight)
-        
-        let o: [UInt8] = [
-            0, 0, 2, 2, 2, 2, 0, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 0, 2, 2, 2, 2, 0, 0
-        ]
-        
-        let k: [UInt8] = [
-            0, 2, 2, 0, 0, 0, 0, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 2, 2, 2, 0,
-            0, 2, 2, 2, 2, 2, 0, 0,
-            0, 2, 2, 2, 2, 2, 0, 0,
-            0, 2, 2, 0, 2, 2, 0, 0,
-            0, 2, 2, 0, 0, 2, 2, 0,
-            0, 2, 2, 0, 0, 2, 2, 0
-        ]
-
-        var ypos = Int(y)
-        var xpos = Int(x)
-
-        for r in 0 ..< 8 {
-            let yoff = ypos * winWidth
-            for c in 0 ..< 8 {
-                buf[yoff+xpos+c] = o[r*8+c]
-            }
-            ypos += 1
-        }
-
-        xpos += 8
-        ypos = Int(y)
-        
-        for r in 0 ..< 8 {
-            let yoff = ypos * winWidth
-            for c in 0 ..< 8 {
-                buf[yoff+xpos+c] = k[r*8+c]
-            }
-            ypos += 1
-        }
-
-        ppu.pixelBuffer = buf
     }
 }
 
 /// Pixel processing unit
 class PPU: ObservableObject {
     public var pixelBuffer: [UInt8]
-    private let bytesPerRow = winWidth
+    private let bytesPerRow = ppuWidth
     private let bitsPerPixel = 8
     
     private let clut: [UInt8] =     [0xFF, 0xFF, 0xFF,  // r, g, b
                                      0x8C, 0xDB, 0xC4,
                                      0x00, 0x00, 0x00,
                                      0xFF, 0xC6, 0x33]
+    // MARK: Expand clut to 16 colors.
 
     private var imageDataProvider: CGDataProvider!
     private var colorSpace: CGColorSpace!

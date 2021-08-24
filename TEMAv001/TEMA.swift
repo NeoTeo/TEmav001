@@ -40,7 +40,7 @@ class System {
     
     func registerBus(id: Bus.Device, name: String, comms: @escaping (Bus, UInt8, UInt8)->Void) -> Bus {
         print("Registered bus: \(id) \(name) at ")
-        let newbus = Bus(owner: self, comms: comms)
+        let newbus = Bus(id: id, owner: self, comms: comms)
         bus[Int(id.rawValue)] = newbus
         return newbus
     }
@@ -57,6 +57,7 @@ class System {
 
 /// Bus between devices
 class Bus {
+    let address: UInt8  // a bus is referenced via a particular address in TEma RAM: Device id * 0x10
     let owner: System
     let comms: ((Bus, UInt8, UInt8)->(Void))
     // The position in the buffer represents a particular "port" for the device we're communicating with
@@ -68,13 +69,14 @@ class Bus {
         case console
         case display
         case audio
-        case controller1 = 0x08
+        case controller1 = 0x8
         case controller2
         case mouse
         case file = 0xA0
     }
     
-    init(owner: System, comms: @escaping (Bus, UInt8, UInt8)->(Void)) {
+    init(id: Device, owner: System, comms: @escaping (Bus, UInt8, UInt8)->(Void)) {
+        self.address = id.rawValue * 0x10
         self.owner = owner
         self.comms = comms
     }
@@ -243,6 +245,7 @@ class CPU {
     enum CPUError: Error {
     case missingParameters
         case pcBrk
+        case invalidInterrrupt
     }
     
     /// Parameter stack, 256 bytes, unsigned
@@ -276,24 +279,36 @@ class CPU {
         }
     }
     
-    var interruptMasterEnable: Bool = false
-    var interruptVector: UInt16?
-    func interruptEnable(vec: UInt16) {
-        interruptVector = vec
-        interruptMasterEnable = true
+    // the interrupt master enable is in ram so that the interrupt function can access it without needing a special opcode (like RETI on GBA)
+    let interruptMasterEnable: UInt16  = 0x00B0       // just after the bus addresses - by convention, so subject to change
+    var interruptFlags: UInt8 = 0
+    
+    // caller must ensure these are not called concurrently. Perhaps not use interrupts next time?
+    func interruptEnable(bus: Bus) {
+        let IME = sys.mmu.read(address: interruptMasterEnable)
+        guard IME == 1 else { return }
+        // signal that an interrupt is now in progress. Must be reset by the interrupt function.
+        sys.mmu.write(value: 0, address: interruptMasterEnable)
+        
+        // set the appropriate flag for the given bus. Only one for now.
+        interruptFlags = bus.address >> 4
     }
     
     var dbgTickCount = 0
     
     func clockTick() throws {
         
-        // handle interrupt request
-        // MARK: Currently it is possible to interrupt the interrupt. Fix this.
-        if interruptMasterEnable == true, let iv = interruptVector {
-            interruptMasterEnable = false
+        // service interrupt requests
+        if interruptFlags != 0 {
+            let IME = sys.mmu.read(address: interruptMasterEnable)
+            guard IME == 0 else { return }
+            
+            guard let bus = sys.bus[Int(interruptFlags & 0xFF)] else { throw CPUError.invalidInterrrupt }
+            interruptFlags = 0
+            
             try rStack.push16(pc)
-            pc = iv
-            interruptVector = nil
+            let intvec = read16(mem: &bus.buffer, address: 0)
+            pc = intvec
         }
         
         guard pc > 0 else { throw CPUError.pcBrk }
@@ -314,10 +329,11 @@ class CPU {
         
         /// include the short flag in the opcode memory 
         let op = OpCode(rawValue: memval & 0x3F)
-        if dbgTickCount == 8050 {
+        dbgTickCount += 1
+        if dbgTickCount == 195 {
             print("stop")
         }
-        dbgTickCount += 1
+        
         //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil { fatalError("op is nil") }
         do {
