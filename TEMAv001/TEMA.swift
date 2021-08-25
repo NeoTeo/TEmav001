@@ -39,7 +39,7 @@ class System {
     }
     
     func registerBus(id: Bus.Device, name: String, comms: @escaping (Bus, UInt8, UInt8)->Void) -> Bus {
-        print("Registered bus: \(id) \(name) at ")
+        print("Registered bus: \(id) \(name) at \(id.rawValue << 4)")
         let newbus = Bus(id: id, owner: self, comms: comms)
         bus[Int(id.rawValue)] = newbus
         return newbus
@@ -330,9 +330,12 @@ class CPU {
         /// include the short flag in the opcode memory 
         let op = OpCode(rawValue: memval & 0x3F)
         dbgTickCount += 1
-        if dbgTickCount == 195 {
-            print("stop")
-        }
+//        if dbgTickCount == 195 {
+//            print("stop")
+//        }
+//        if pc == 595 {
+//            print("break")
+//        }
         
         //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil { fatalError("op is nil") }
@@ -355,7 +358,7 @@ class CPU {
             
         case .pop:
             let val = copyFlag ? try sourceStack.last8() : try sourceStack.pop8()
-            print("popped value \(String(describing: val))")
+            //print("popped value \(String(describing: val))")
             pc += 1
 
         case .dup:
@@ -575,7 +578,7 @@ class CPU {
         case .pop16:
             let val = copyFlag ? try sourceStack.last16() : try sourceStack.pop16()
             
-            print("popped short value \(String(describing: val))")
+            //print("popped short value \(String(describing: val))")
             pc += 1
 
         case .dup16:

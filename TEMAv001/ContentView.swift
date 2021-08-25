@@ -58,13 +58,28 @@ struct ContentView: View {
 //    let emuAllowanceNanos: Double = 1_000_000_000 / 60
        
     func displayComms(bus: Bus, a: UInt8, b: UInt8) {
-        if b != 0 && (a == 0xe) {
+        guard b != 0 else { return }
+        switch a {
+        case 0xe:
             let x = Int(bus.busRead16(a: 0x8))
             let y = Int(bus.busRead16(a: 0xA))
             let colIdx = bus.busRead(a: 0xE)
             ppu.pixelBuffer[y*ppuWidth+x] = colIdx
-            
-            //print("set a pixel at \(x),\(y)")
+        case 0xf:
+            let x = Int(bus.busRead16(a: 0x8))
+            let y = Int(bus.busRead16(a: 0xA))
+            let addr = Int(bus.busRead16(a: 0xC))
+            //let addr = tema.mmu.bank[idx]
+
+            /// for now assuming 8x8 pixels and no clutidx
+            for row in 0 ..< 8 {
+                let rowdat = tema.mmu.bank[Int(addr)+row]
+                for col in 0 ..< 8 {
+                    let off = (y+row)*ppuWidth+x+col
+                    ppu.pixelBuffer[off] = (rowdat & (0x80 >> col)) == 0 ? 0 : 0x2
+                }
+            }
+        default: break
         }
     }
     
@@ -200,6 +215,7 @@ struct ContentView: View {
                     let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
+//                .trackingMouse { position in print("mouse is at \(position.x),\(position.y)") }
             }
 //        }
         }
@@ -278,7 +294,7 @@ struct KeyEventHandling: NSViewRepresentable {
     class KeyView: NSView {
         override var acceptsFirstResponder: Bool { true }
         override func keyDown(with event: NSEvent) {
-            print(">> key \(event.charactersIgnoringModifiers ?? "")")
+            //print(">> key \(event.charactersIgnoringModifiers ?? "")")
             let keys = event.charactersIgnoringModifiers
             keysPublisher.send(keys!)
         }
@@ -302,3 +318,4 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
     }
 }
+

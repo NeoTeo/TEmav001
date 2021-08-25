@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		AB48BB3F26CBD49E00EF9996 /* TEMAv001.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = AB842BF626A41A3D00D5425D /* TEMAv001.app */; };
+		AB696B8926D674EE0099B7E9 /* MouseTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB696B8826D674EE0099B7E9 /* MouseTracking.swift */; };
 		AB83C54E26AC0E4400DE7383 /* TEMA.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB83C54D26AC0E4400DE7383 /* TEMA.swift */; };
 		AB842BFA26A41A3D00D5425D /* TEMAv001App.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB842BF926A41A3D00D5425D /* TEMAv001App.swift */; };
 		AB842BFC26A41A3D00D5425D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB842BFB26A41A3D00D5425D /* ContentView.swift */; };
@@ -29,6 +30,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AB696B8826D674EE0099B7E9 /* MouseTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseTracking.swift; sourceTree = "<group>"; };
 		AB83C54D26AC0E4400DE7383 /* TEMA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TEMA.swift; sourceTree = "<group>"; };
 		AB83C55026AC2D7300DE7383 /* TEMAv001.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TEMAv001.entitlements; sourceTree = "<group>"; };
 		AB842BF626A41A3D00D5425D /* TEMAv001.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TEMAv001.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,6 +72,7 @@
 			children = (
 				AB83C55026AC2D7300DE7383 /* TEMAv001.entitlements */,
 				AB842BF926A41A3D00D5425D /* TEMAv001App.swift */,
+				AB696B8826D674EE0099B7E9 /* MouseTracking.swift */,
 				AB842BFB26A41A3D00D5425D /* ContentView.swift */,
 				AB83C54D26AC0E4400DE7383 /* TEMA.swift */,
 				AB842BFD26A41A3E00D5425D /* Assets.xcassets */,
@@ -159,6 +162,7 @@
 			files = (
 				AB83C54E26AC0E4400DE7383 /* TEMA.swift in Sources */,
 				AB842BFC26A41A3D00D5425D /* ContentView.swift in Sources */,
+				AB696B8926D674EE0099B7E9 /* MouseTracking.swift in Sources */,
 				AB842BFA26A41A3D00D5425D /* TEMAv001App.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
