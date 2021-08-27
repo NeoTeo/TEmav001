@@ -195,6 +195,7 @@ struct ContentView: View {
 //                            try? FileHandle.standardOutput.write(contentsOf: dat)
 //                            }
                             //tema.mmu.debugInit()
+                            tema.tests()
                         }
                     Text("cpu rate: \(cycleRate)").monospacedDigit()
                     Text("fps: \(fps)").monospacedDigit()

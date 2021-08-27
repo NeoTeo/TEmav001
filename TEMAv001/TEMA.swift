@@ -53,6 +53,67 @@ class System {
             mmu.bank[Int(destAddr)+idx] = ram[idx]
         }
     }
+    
+    func tests() {
+        func testStack() throws {
+            try cpu.pStack.push8(42)
+            let val = try cpu.pStack.pop8()
+            print("stack popped \(val)")
+            try cpu.pStack.push8(42)
+            try cpu.pStack.push8(69)
+            try cpu.pStack.push8(33)
+            let a = try cpu.pStack.popCopy8()
+            let b = try cpu.pStack.popCopy8()
+            let c = try cpu.pStack.pop8()
+            print("stack popped a: \(a), b: \(b), c: \(c)")
+            
+            try cpu.pStack.push8(42)
+            try cpu.pStack.push8(69)
+            try cpu.pStack.push8(33)
+            let d = try cpu.pStack.popCopy8()
+            try cpu.pStack.push8(88)
+            let e = try cpu.pStack.popCopy8()
+            let f = try cpu.pStack.pop8()
+            print("stack popped d: \(d), e: \(e), f: \(f)")
+        }
+        
+        func testStackLimit() throws {
+            // first make sure stack size is set to 3
+            try cpu.pStack.push8(42)
+            try cpu.pStack.push8(42)
+            try cpu.pStack.push8(69)
+//            try cpu.pStack.push8(33)    // uncomment this line to get an overflow error
+            
+//            _ = try cpu.pStack.pop8()
+//            _ = try cpu.pStack.pop8()
+//            _ = try cpu.pStack.pop8()
+//            _ = try cpu.pStack.pop8()   // uncomment this line to get an underflow error
+            
+            let _ = try cpu.pStack.popCopy8()
+            let _ = try cpu.pStack.popCopy8()
+            let _ = try cpu.pStack.popCopy8()
+//            let _ = try cpu.pStack.popCopy8() // uncomment this line to get an underflow error
+        }
+
+        func testStackLimit16() throws {
+            // first make sure stack size is set to 3
+            try cpu.pStack.push16(360)
+//            try cpu.pStack.push16(420)    // uncomment this line to get an overflow error
+            
+//            _ = try cpu.pStack.pop16()
+//            _ = try cpu.pStack.pop16()   // uncomment this line to get an underflow error
+            
+            let _ = try cpu.pStack.popCopy16()
+//            let _ = try cpu.pStack.popCopy16() // uncomment this line to get an underflow error
+        }
+
+        do {
+//            try testStack()
+            try testStackLimit16()
+        } catch {
+            print("TEma tests failed with \(error)")
+        }
+    }
 }
 
 /// Bus between devices
@@ -104,43 +165,90 @@ class Bus {
 }
 
 class Stack {
-    
+        
     enum StackError: Error {
         case underflow
         case overflow
     }
     
-    private var data = [UInt8]()
-    func push8(_ val: UInt8) throws { guard data.count < 256 else { throw StackError.overflow }
-        data.append(val)
+    static let stBytes = 256
+    private var data = [UInt8](repeating: 0, count: stBytes)
+    var count = 0
+    var copyIdx = 0
+
+    func push8(_ val: UInt8) throws {
+        guard count < Stack.stBytes else { throw StackError.overflow }
+        data[count] = val
+        count += 1
+        copyIdx = count
     }
     
     func push16(_ val: UInt16) throws {
-        guard data.count < 255 else { throw StackError.overflow }
-        data.append(UInt8(val >> 8)) ; data.append(UInt8(val & 0xFF))
+        guard count < Stack.stBytes-1 else { throw StackError.overflow }
+        try push8(UInt8(val >> 8)) ; try push8(UInt8(val & 0xFF))
     }
     
     func pop8() throws -> UInt8 {
-        guard let a = data.popLast() else { throw StackError.underflow }
-        return a
+        guard count > 0 else { throw StackError.underflow }
+        count -= 1
+        copyIdx = count
+        return data[count]
     }
     
-    func last8() throws -> UInt8 {
-        guard let a = data.last else { throw StackError.underflow }
-        return a
+    func popCopy8() throws -> UInt8 {
+        guard copyIdx > 0 else { throw StackError.underflow }
+        copyIdx -= 1
+        return data[copyIdx]
     }
 
     func pop16() throws -> UInt16 {
-        guard let a = data.popLast(), let b = data.popLast() else { throw StackError.underflow }
-            return (UInt16(b) << 8) | UInt16(a & 0xFF)
+        let a = try pop8() ; let b = try pop8()
+        return (UInt16(b) << 8) | UInt16(a & 0xFF)
     }
     
-    func last16() throws -> UInt16 {
-        guard data.count > 1 else { throw StackError.underflow }
-        return (UInt16(data[data.count-2]) << 8) | UInt16(data[data.count-1])
+    func popCopy16() throws -> UInt16 {
+        let a = try popCopy8() ; let b = try popCopy8()
+        return (UInt16(b) << 8) | UInt16(a)
     }
-
 }
+//class Stack {
+//
+//    enum StackError: Error {
+//        case underflow
+//        case overflow
+//    }
+//
+//    private var data = [UInt8]()
+//    func push8(_ val: UInt8) throws { guard data.count < 256 else { throw StackError.overflow }
+//        data.append(val)
+//    }
+//
+//    func push16(_ val: UInt16) throws {
+//        guard data.count < 255 else { throw StackError.overflow }
+//        data.append(UInt8(val >> 8)) ; data.append(UInt8(val & 0xFF))
+//    }
+//
+//    func pop8() throws -> UInt8 {
+//        guard let a = data.popLast() else { throw StackError.underflow }
+//        return a
+//    }
+//
+//    func last8() throws -> UInt8 {
+//        guard let a = data.last else { throw StackError.underflow }
+//        return a
+//    }
+//
+//    func pop16() throws -> UInt16 {
+//        guard let a = data.popLast(), let b = data.popLast() else { throw StackError.underflow }
+//            return (UInt16(b) << 8) | UInt16(a & 0xFF)
+//    }
+//
+//    func last16() throws -> UInt16 {
+//        guard data.count > 1 else { throw StackError.underflow }
+//        return (UInt16(data[data.count-2]) << 8) | UInt16(data[data.count-1])
+//    }
+//
+//}
 
 /// Central Processing Unit
 class CPU {
@@ -357,12 +465,12 @@ class CPU {
             pc += 1
             
         case .pop:
-            let val = copyFlag ? try sourceStack.last8() : try sourceStack.pop8()
+            let val = copyFlag ? try sourceStack.popCopy8() : try sourceStack.pop8()
             //print("popped value \(String(describing: val))")
             pc += 1
 
         case .dup:
-            try sourceStack.push8(try sourceStack.last8())
+            try sourceStack.push8(try sourceStack.popCopy8())
             pc += 1
             
         case .ovr: // ( b a -- b a b )
@@ -398,7 +506,7 @@ class CPU {
             pc += 1
 
         case .sts:  // stack to stack transfer
-            let a = copyFlag ? try sourceStack.last8() : try sourceStack.pop8()
+            let a = copyFlag ? try sourceStack.popCopy8() : try sourceStack.pop8()
 //            let a = try sourceStack.pop8()
             try targetStack.push8(a)
             
@@ -576,13 +684,13 @@ class CPU {
             // MARK: is this pc right?
             
         case .pop16:
-            let val = copyFlag ? try sourceStack.last16() : try sourceStack.pop16()
+            let val = copyFlag ? try sourceStack.popCopy16() : try sourceStack.pop16()
             
             //print("popped short value \(String(describing: val))")
             pc += 1
 
         case .dup16:
-            try sourceStack.push16(try sourceStack.last16())
+            try sourceStack.push16(try sourceStack.popCopy16())
             pc += 1
             
         case .ovr16:
@@ -619,7 +727,7 @@ class CPU {
             
         case .sts16: // stack to stack transfer
 //            let a = try sourceStack.pop16()
-            let a = copyFlag ? try sourceStack.last16() : try sourceStack.pop16()
+            let a = copyFlag ? try sourceStack.popCopy16() : try sourceStack.pop16()
             try targetStack.push16(a)
             
             pc += 1
@@ -799,7 +907,7 @@ class MMU {
             bank[Int(address)] = value.rawValue
             return address + 1
         }
-
+        
         func test42() {
             clear()
             var addr: UInt16 = 0
