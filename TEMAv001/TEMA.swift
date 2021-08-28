@@ -403,10 +403,9 @@ class CPU {
 //        if dbgTickCount == 195 {
 //            print("stop")
 //        }
-//        if pc == 595 {
+//        if pc == 0x0118 || 0x011C { // 0x118 before call to drawchar, 0x11C after
 //            print("break")
 //        }
-        
         //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil { fatalError("op is nil") }
         do {
@@ -852,7 +851,9 @@ class CPU {
         default:
             print("unimplemented opcode: \(String(describing: op))")
         }
-        } catch { print("ERROR: \(error)") }
+        } catch {
+            print("ERROR: \(error)")
+        }
     }
 }
 

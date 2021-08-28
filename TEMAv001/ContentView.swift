@@ -45,6 +45,8 @@ struct ContentView: View {
     @State var fpsTimes: Int = 0
     @State var cyclesSeq: Int = 0
 
+    let stdin = FileHandle.standardInput
+        
     let objPath = "/Users/teo/Downloads/"
     
     init() {
@@ -160,6 +162,19 @@ struct ContentView: View {
                 if displayBus == nil {
                     Button("Run TEMA") {
                         
+                        stdin.readabilityHandler = { pipe in
+                            let message = String(data: pipe.availableData, encoding: .utf8)!
+
+                            if let cb = consoleBus {
+                                // 0x2 is the read "port" of the console bus buffer, where TEma reads new console data from.
+                                cb.buffer[0x2] = UInt8(Array(message.utf8)[0])
+                                // MARK: exec this on a serial queue to avoid concurrency issues.
+                                tema.cpu.interruptEnable(bus: cb)
+                            }
+
+//                            print("readabilityHandler: \(message)")
+                        }
+
                         consoleBus = tema.registerBus(id: .console, name: "console", comms: consoleComms)
                         // The display bus assumes the following port mappings:
                         // 0x00 interrupt vector
@@ -216,6 +231,7 @@ struct ContentView: View {
                     let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
+                    .frame(width: windowDims.width, height: windowDims.height)
 //                .trackingMouse { position in print("mouse is at \(position.x),\(position.y)") }
             }
 //        }
@@ -229,7 +245,6 @@ struct ContentView: View {
             }
         }
             .background(KeyEventHandling())
-            .frame(width: windowDims.width, height: windowDims.height)
     }
 }
 
