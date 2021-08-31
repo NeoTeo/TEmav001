@@ -228,7 +228,7 @@ struct ContentView: View {
     //            TimelineView(.animation) {_ in
     //            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
                 Canvas { context, size in
-                    let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")))
+                    let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")).interpolation(.none))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
                     .frame(width: windowDims.width, height: windowDims.height)
