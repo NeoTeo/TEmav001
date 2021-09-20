@@ -227,12 +227,13 @@ struct ContentView: View {
             if ppu.display != nil {
     //            TimelineView(.animation) {_ in
     //            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
+            
                 Canvas { context, size in
                     let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")).interpolation(.none))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
+                    .trackingMouse { position in print("mouse is at \(position.x),\(position.y)") }
                     .frame(width: windowDims.width, height: windowDims.height)
-//                .trackingMouse { position in print("mouse is at \(position.x),\(position.y)") }
             }
 //        }
         }

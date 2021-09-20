@@ -387,6 +387,8 @@ class CPU {
         let memval = sys.mmu.read(address: pc)
 
         let copyFlag = (memval & 0x40 != 0)
+        /// This is trying to deal with the case where a copy flag persists between non-copy calls. Is it ok that both p and r stacks are reset when either is used without the copy flag?
+        if copyFlag == false { rStack.copyIdx = rStack.count ; pStack.copyIdx = pStack.count } // MARK: not sure this is 100%
         let pop8: ((Stack) throws -> UInt8) = copyFlag ? { stack in try stack.popCopy8() } : { stack in try stack.pop8() }
         let pop16: ((Stack) throws -> UInt16) = copyFlag ? { stack in try stack.popCopy16() } : { stack in try stack.pop16() }
         
@@ -403,9 +405,9 @@ class CPU {
 //        if dbgTickCount == 195 {
 //            print("stop")
 //        }
-        if pc == 0x0118 { // 0x118 before call to drawchar, 0x11C after
-            print("break")
-        }
+//        if pc == 0x034D { //0x0310 {
+//            print("break")
+//        }
         //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil { fatalError("op is nil") }
         do {
@@ -428,7 +430,7 @@ class CPU {
         case .pop:
 
             _ = try pop8(sourceStack)
-            //print("popped value \(String(describing: val))")
+//            print("popped value \(String(describing: val))")
             pc += 1
 
         case .dup:
