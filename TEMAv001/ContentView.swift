@@ -35,6 +35,7 @@ struct ContentView: View {
     
     @State var displayBus: Bus?
     @State var consoleBus: Bus?
+    @State var mouseBus: Bus?
     
     @State var scaleLabel = "2x"
     @State var viewScale = 1.0
@@ -59,6 +60,8 @@ struct ContentView: View {
     // 1 second = 1_000_000_000 nanoseconds
 //    let emuAllowanceNanos: Double = 1_000_000_000 / 60
        
+    func noComms(bus: Bus, a: UInt8, b: UInt8) { }
+    
     func displayComms(bus: Bus, a: UInt8, b: UInt8) {
         guard b != 0 else { return }
         switch a {
@@ -167,7 +170,7 @@ struct ContentView: View {
 
                             if let cb = consoleBus {
                                 // 0x2 is the read "port" of the console bus buffer, where TEma reads new console data from.
-                                cb.buffer[0x2] = UInt8(Array(message.utf8)[0])
+                                cb.buffer[0x2] = UInt8(Array(message.utf8)[0])  // MARK: should use write for consistency? (or not for speed)
                                 // MARK: exec this on a serial queue to avoid concurrency issues.
                                 tema.cpu.interruptEnable(bus: cb)
                             }
@@ -193,6 +196,13 @@ struct ContentView: View {
                             write16(mem: &displayBus!.buffer, value: UInt16(ppuWidth), address: 0x2)
                             write16(mem: &displayBus!.buffer, value: UInt16(ppuHeight), address: 0x4)
                         }
+                        
+                        // The mouse bus assumes the following mappings:
+                        // 0x00 interrupt vector
+                        // 0x02 x position
+                        // 0x04 y position
+                        // 0x06 button state (0x10 signals lmb down, 0x01 signals rmb down)
+                        mouseBus = tema.registerBus(id: .mouse, name: "mouse", comms: noComms)
                         
                         Task.init(priority: .high) {
                             TEmuCycle()
@@ -232,7 +242,30 @@ struct ContentView: View {
                     let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")).interpolation(.none))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
-                    .trackingMouse { position in print("mouse is at \(position.x),\(position.y)") }
+                    .trackingMouse { event in
+                        if let mb = mouseBus {
+                            
+                            switch event.type {
+                            case .mouseMoved:
+                                let position = event.locationInWindow
+                                //print("mouse is at \(position.x),\(position.y)")
+                                let x = min(max(0, Int(position.x)), ppuWidth)
+                                let y = min(max(0, Int(position.y)), ppuHeight)
+                                // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
+                                write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
+                                write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
+                                
+                                
+                            case .leftMouseDown:    mb.buffer[0x06] |= 0x10
+                            case .leftMouseUp:      mb.buffer[0x06] &= ~0x10
+                            case .rightMouseDown:   mb.buffer[0x06] |= 0x01
+                            case .rightMouseUp:     mb.buffer[0x06] &= ~0x01
+                            default:
+                                print("mouse did summink. dunno?!")
+                            }
+                            tema.cpu.interruptEnable(bus: mb)
+                        }
+                    }
                     .frame(width: windowDims.width, height: windowDims.height)
             }
 //        }

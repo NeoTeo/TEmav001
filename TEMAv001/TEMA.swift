@@ -131,7 +131,6 @@ class Bus {
         case display
         case audio
         case controller1 = 0x8
-        case controller2
         case mouse
         case file = 0xA0
     }
@@ -430,6 +429,7 @@ class CPU {
         case .pop:
 
             _ = try pop8(sourceStack)
+//            let val = try pop8(sourceStack)
 //            print("popped value \(String(describing: val))")
             pc += 1
 
@@ -647,8 +647,9 @@ class CPU {
             // MARK: is this pc right?
             
         case .pop16:
-            _ = try pop16(sourceStack)
-            //print("popped short value \(String(describing: val))")
+//            _ = try pop16(sourceStack)
+            let val = try pop16(sourceStack)
+            print("popped short value \(String(describing: val))")
             pc += 1
 
         case .dup16:
