@@ -234,41 +234,15 @@ struct ContentView: View {
                     }
                 }
             }
+
             if ppu.display != nil {
-    //            TimelineView(.animation) {_ in
-    //            let disp = Image(ppu.display!, scale: 1, label: Text("raster display"))
             
                 Canvas { context, size in
                     let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")).interpolation(.none))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
-                    .trackingMouse { event in
-                        if let mb = mouseBus {
-                            
-                            switch event.type {
-                            case .mouseMoved:
-                                let position = event.locationInWindow
-                                //print("mouse is at \(position.x),\(position.y)")
-                                let x = min(max(0, Int(position.x)), ppuWidth)
-                                let y = min(max(0, Int(position.y)), ppuHeight)
-                                // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
-                                write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
-                                write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
-                                
-                                
-                            case .leftMouseDown:    mb.buffer[0x06] |= 0x10
-                            case .leftMouseUp:      mb.buffer[0x06] &= ~0x10
-                            case .rightMouseDown:   mb.buffer[0x06] |= 0x01
-                            case .rightMouseUp:     mb.buffer[0x06] &= ~0x01
-                            default:
-                                print("mouse did summink. dunno?!")
-                            }
-                            tema.cpu.interruptEnable(bus: mb)
-                        }
-                    }
                     .frame(width: windowDims.width, height: windowDims.height)
             }
-//        }
         }
         .onReceive(keysPublisher) { keys in
             if let cb = consoleBus {
@@ -278,7 +252,36 @@ struct ContentView: View {
                 tema.cpu.interruptEnable(bus: cb)
             }
         }
+        .overlay(
+            EmptyView()
+                .trackingMouse { event in
+                    if let mb = mouseBus {
+                        
+                        switch event.type {
+                        case .mouseMoved:
+                            let position = event.locationInWindow
+                            //print("mouse is at \(position.x),\(position.y)")
+                            let x = min(max(0, Int(position.x)), ppuWidth-1)
+                            let y = min(max(0, ppuHeight-Int(position.y)), ppuHeight-1)
+                            // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
+                            write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
+                            write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
+                            
+                            
+                        case .leftMouseDown:    mb.buffer[0x06] |= 0x10
+                        case .leftMouseUp:      mb.buffer[0x06] &= ~0x10
+                        case .rightMouseDown:   mb.buffer[0x06] |= 0x01
+                        case .rightMouseUp:     mb.buffer[0x06] &= ~0x01
+                        default:
+                            print("mouse did summink. dunno?!")
+                        }
+                        tema.cpu.interruptEnable(bus: mb)
+                    }
+                }
+
+        )
             .background(KeyEventHandling())
+        
     }
 }
 
