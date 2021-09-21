@@ -260,9 +260,13 @@ struct ContentView: View {
                         switch event.type {
                         case .mouseMoved:
                             let position = event.locationInWindow
-                            //print("mouse is at \(position.x),\(position.y)")
-                            let x = min(max(0, Int(position.x)), ppuWidth-1)
-                            let y = min(max(0, ppuHeight-Int(position.y)), ppuHeight-1)
+                            
+                            let sx = Int(position.x * viewScale)
+                            let sy = Int(position.y * viewScale)
+                            
+                            let x = min(max(0, sx), ppuWidth-1)
+                            let y = min(max(0, ppuHeight-sy), ppuHeight-1)
+                            
                             // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
                             write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
                             write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)

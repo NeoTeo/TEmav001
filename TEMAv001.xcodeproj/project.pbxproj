@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AB48BB3F26CBD49E00EF9996 /* TEMAv001.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = AB842BF626A41A3D00D5425D /* TEMAv001.app */; };
 		AB696B8926D674EE0099B7E9 /* MouseTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB696B8826D674EE0099B7E9 /* MouseTracking.swift */; };
 		AB83C54E26AC0E4400DE7383 /* TEMA.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB83C54D26AC0E4400DE7383 /* TEMA.swift */; };
 		AB842BFA26A41A3D00D5425D /* TEMAv001App.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB842BF926A41A3D00D5425D /* TEMAv001App.swift */; };
@@ -15,19 +14,6 @@
 		AB842BFE26A41A3E00D5425D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB842BFD26A41A3E00D5425D /* Assets.xcassets */; };
 		AB842C0126A41A3E00D5425D /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB842C0026A41A3E00D5425D /* Preview Assets.xcassets */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		AB48BB3E26CBD43B00EF9996 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = Users/teo/tmp;
-			dstSubfolderSpec = 0;
-			files = (
-				AB48BB3F26CBD49E00EF9996 /* TEMAv001.app in CopyFiles */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		AB696B8826D674EE0099B7E9 /* MouseTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseTracking.swift; sourceTree = "<group>"; };
@@ -99,7 +85,6 @@
 				AB842BF226A41A3D00D5425D /* Sources */,
 				AB842BF326A41A3D00D5425D /* Frameworks */,
 				AB842BF426A41A3D00D5425D /* Resources */,
-				AB48BB3E26CBD43B00EF9996 /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -228,6 +213,7 @@
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -282,6 +268,7 @@
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
