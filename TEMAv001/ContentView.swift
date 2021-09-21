@@ -241,6 +241,7 @@ struct ContentView: View {
                     let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")).interpolation(.none))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
+                .overlay(Color.clear.contentShape(Rectangle()).trackingMouse { event in handleMouseEvents(event: event) })
                     .frame(width: windowDims.width, height: windowDims.height)
             }
         }
@@ -252,40 +253,41 @@ struct ContentView: View {
                 tema.cpu.interruptEnable(bus: cb)
             }
         }
-        .overlay(
-            EmptyView()
-                .trackingMouse { event in
-                    if let mb = mouseBus {
-                        
-                        switch event.type {
-                        case .mouseMoved:
-                            let position = event.locationInWindow
-                            
-                            let sx = Int(position.x * viewScale)
-                            let sy = Int(position.y * viewScale)
-                            
-                            let x = min(max(0, sx), ppuWidth-1)
-                            let y = min(max(0, ppuHeight-sy), ppuHeight-1)
-                            
-                            // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
-                            write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
-                            write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
-                            
-                            
-                        case .leftMouseDown:    mb.buffer[0x06] |= 0x10
-                        case .leftMouseUp:      mb.buffer[0x06] &= ~0x10
-                        case .rightMouseDown:   mb.buffer[0x06] |= 0x01
-                        case .rightMouseUp:     mb.buffer[0x06] &= ~0x01
-                        default:
-                            print("mouse did summink. dunno?!")
-                        }
-                        tema.cpu.interruptEnable(bus: mb)
-                    }
-                }
-
-        )
+//            .overlay(EmptyView().trackingMouse { event in handleMouseEvents(event: event) })
             .background(KeyEventHandling())
         
+    }
+    
+    func handleMouseEvents(event: NSEvent) {
+        if let mb = mouseBus {
+            switch event.type {
+            case.leftMouseDragged:
+                mb.buffer[0x06] |= 0x10
+                fallthrough
+            case .mouseMoved:
+                let position = event.locationInWindow
+                
+                let sx = Int(position.x * viewScale)
+                let sy = Int(position.y * viewScale)
+                
+                let x = min(max(0, sx), ppuWidth-1)
+                let y = min(max(0, ppuHeight-sy), ppuHeight-1)
+                
+                // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
+                write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
+                write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
+                
+                
+            case .leftMouseDown:    mb.buffer[0x06] |= 0x10
+            case .leftMouseUp:      mb.buffer[0x06] &= ~0x10
+            case .rightMouseDown:   mb.buffer[0x06] |= 0x01
+            case .rightMouseUp:     mb.buffer[0x06] &= ~0x01
+            default:
+                print("mouse did summink. dunno?!")
+            }
+//            print("the event was \(event.description)")
+            tema.cpu.interruptEnable(bus: mb)
+        }
     }
 }
 
