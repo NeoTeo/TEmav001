@@ -259,14 +259,9 @@ struct ContentView: View {
     }
     
     func handleMouseEvents(event: NSEvent) {
-        if let mb = mouseBus {
-            switch event.type {
-            case.leftMouseDragged:
-                mb.buffer[0x06] |= 0x10
-                fallthrough
-            case .mouseMoved:
-                let position = event.locationInWindow
                 
+        if let mb = mouseBus {
+            func mouseMoved(position: NSPoint) {
                 let sx = Int(position.x * viewScale)
                 let sy = Int(position.y * viewScale)
                 
@@ -276,7 +271,20 @@ struct ContentView: View {
                 // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
                 write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
                 write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
+            }
+
+            switch event.type {
+            case .rightMouseDragged:
+                mb.buffer[0x06] |= 0x01
+                mouseMoved(position: event.locationInWindow)
                 
+            case.leftMouseDragged:
+                mb.buffer[0x06] |= 0x10
+                mouseMoved(position: event.locationInWindow)
+                
+            case .mouseMoved:
+                let position = event.locationInWindow
+                mouseMoved(position: position)
                 
             case .leftMouseDown:    mb.buffer[0x06] |= 0x10
             case .leftMouseUp:      mb.buffer[0x06] &= ~0x10
