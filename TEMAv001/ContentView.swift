@@ -241,6 +241,9 @@ struct ContentView: View {
                     let disp = context.resolve(Image(ppu.display!, scale: viewScale, label: Text("raster display")).interpolation(.none))
                     context.draw(disp, at: CGPoint(x: 0,y: 0), anchor: .topLeading)
                 }
+                .onHover { entered in
+                    if entered { NSCursor.hide() } else { NSCursor.unhide() }
+                }
                 .overlay(Color.clear.contentShape(Rectangle()).trackingMouse { event in handleMouseEvents(event: event) })
                     .frame(width: windowDims.width, height: windowDims.height)
             }
