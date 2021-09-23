@@ -68,20 +68,24 @@ struct ContentView: View {
         case 0xe:
             let x = Int(bus.busRead16(a: 0x8))
             let y = Int(bus.busRead16(a: 0xA))
-            let colIdx = bus.busRead(a: 0xE)
-            ppu.pixelBuffer[y*ppuWidth+x] = colIdx
-        case 0xf:
+            /// pixel clut index is lower two bits of value at 0xE and layer selector is bit 7
+            let clulay = bus.busRead(a: 0xE)
+            let colIdx = clulay & 0x03
+            let layer = clulay & 0x40
+            //ppu.pixelBuffer[y*ppuWidth+x] = colIdx
+            ppu.setPixel(x: x, y: y, cidx: colIdx, layer: layer)
+            
+        case 0xf:   /// DMA of 8x8 bytes from TEma RAM to PPU pixel buffer.
             let x = Int(bus.busRead16(a: 0x8))
             let y = Int(bus.busRead16(a: 0xA))
             let addr = Int(bus.busRead16(a: 0xC))
             //let addr = tema.mmu.bank[idx]
-
+            let layer = bus.busRead(a: 0xF) & 0x40
             /// for now assuming 8x8 pixels and no clutidx
             for row in 0 ..< 8 {
                 let rowdat = tema.mmu.bank[Int(addr)+row]
                 for col in 0 ..< 8 {
-                    let off = (y+row)*ppuWidth+x+col
-                    ppu.pixelBuffer[off] = (rowdat & (0x80 >> col)) == 0 ? 0 : 0x2
+                    ppu.setPixel(x: x+col, y: y+row, cidx: (rowdat & (0x80 >> col)) == 0 ? 0 : 0x2, layer: layer)
                 }
             }
         default: break
@@ -304,7 +308,11 @@ struct ContentView: View {
 
 /// Pixel processing unit
 class PPU: ObservableObject {
-    public var pixelBuffer: [UInt8]
+    private var bgBuffer: [UInt8]
+    private var fgBuffer: [UInt8]
+    private var cbuf: [UInt8]
+    private var compNeeded: Bool = false
+    
     private let bytesPerRow = ppuWidth
     private let bitsPerPixel = 8
     
@@ -327,8 +335,11 @@ class PPU: ObservableObject {
         horizontalPixels = width
         verticalPixels = height
         
-        pixelBuffer = [UInt8](repeating: 0, count: width * height)
-        imageDataProvider = CGDataProvider(data: Data(pixelBuffer) as NSData)
+        bgBuffer = [UInt8](repeating: 0, count: width * height)
+        fgBuffer = [UInt8](repeating: 0, count: width * height)
+        cbuf = [UInt8](repeating: 0, count: width * height)
+        
+        imageDataProvider = CGDataProvider(data: Data(bgBuffer) as NSData)
         guard imageDataProvider != nil else { fatalError("PPU init failed with nil imageDataProvider") }
         colorSpace = CGColorSpace(indexedBaseSpace: CGColorSpaceCreateDeviceRGB(),
                                   last: (clut.count/3)-1,
@@ -337,9 +348,21 @@ class PPU: ObservableObject {
         
     }
         
-    func refresh() {
+    func setPixel(x: Int, y: Int, cidx: UInt8, layer: UInt8) {
+        let idx = y*ppuWidth+x
+        if layer == 0  {
+            bgBuffer[idx] = cidx
+        } else {
+            fgBuffer[idx] = cidx
+        }
+        cbuf[idx] = bgBuffer[idx] | fgBuffer[idx]
+    }
+    
 
-        imageDataProvider = CGDataProvider(data: Data(pixelBuffer) as NSData)
+    func refresh() {
+                
+        imageDataProvider = CGDataProvider(data: Data(cbuf) as NSData)
+
         let img = CGImage(width: self.horizontalPixels,
                             height: self.verticalPixels,
                             bitsPerComponent: 8,

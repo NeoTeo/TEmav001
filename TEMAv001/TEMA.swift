@@ -404,7 +404,7 @@ class CPU {
 //        if dbgTickCount == 195 {
 //            print("stop")
 //        }
-//        if pc == 0x034D { //0x0310 {
+//        if pc == 0x01B2 { //0x0310 {
 //            print("break")
 //        }
         //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
