@@ -1137,6 +1137,7 @@ class MMU {
     }
 
     func read(address: UInt16) -> UInt8 {
+        // match ramQ use with write
 //        ramQ.sync {
             return bank[Int(address)]
 //        }
