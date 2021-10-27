@@ -25,6 +25,7 @@ struct ContentView: View {
     
     @State private var windowDims = CGSize(width: ppuWidth, height: ppuHeight)
     let cycleQ = DispatchQueue.global(qos: .userInitiated)
+    let irQ = DispatchQueue.global(qos: .userInitiated)
     
     var tema: System
     @ObservedObject
@@ -81,10 +82,13 @@ struct ContentView: View {
             let addr = Int(bus.busRead16(a: 0xC))
             //let addr = tema.mmu.bank[idx]
             let layer = bus.busRead(a: 0xF) & 0x40
+            let rows = min(max(ppuHeight-y, 0), 8)
+            let cols = min(max(ppuWidth-x, 0), 8)
             /// for now assuming 8x8 pixels and no clutidx
-            for row in 0 ..< 8 {
-                let rowdat = tema.mmu.bank[Int(addr)+row]
-                for col in 0 ..< 8 {
+            for row in 0 ..< rows {
+//                let rowdat = tema.mmu.bank[Int(addr)+row]
+                let rowdat = tema.mmu.read(address: UInt16(addr+row))
+                for col in 0 ..< cols {
                     ppu.setPixel(x: x+col, y: y+row, cidx: (rowdat & (0x80 >> col)) == 0 ? 0 : 0x2, layer: layer)
                 }
             }
@@ -173,10 +177,13 @@ struct ContentView: View {
                             let message = String(data: pipe.availableData, encoding: .utf8)!
 
                             if let cb = consoleBus {
-                                // 0x2 is the read "port" of the console bus buffer, where TEma reads new console data from.
-                                cb.buffer[0x2] = UInt8(Array(message.utf8)[0])  // MARK: should use write for consistency? (or not for speed)
-                                // MARK: exec this on a serial queue to avoid concurrency issues.
-                                tema.cpu.interruptEnable(bus: cb)
+                                irQ.async {
+                                    // 0x2 is the read "port" of the console bus buffer, where TEma reads new console data from.
+                                    cb.buffer[0x2] = UInt8(Array(message.utf8)[0])  // MARK: should use write for consistency? (or not for speed)
+                                    // MARK: exec this on a serial queue to avoid concurrency issues.
+                                    tema.cpu.interruptEnable(bus: cb)
+                                }
+                                
                             }
 
 //                            print("readabilityHandler: \(message)")
@@ -248,16 +255,19 @@ struct ContentView: View {
                 .onHover { entered in
                     if entered { NSCursor.hide() } else { NSCursor.unhide() }
                 }
-                .overlay(Color.clear.contentShape(Rectangle()).trackingMouse { event in handleMouseEvents(event: event) })
+                    .overlay(Color.clear.contentShape(Rectangle()).trackingMouse { event in handleMouseEvents(event: event) })
                     .frame(width: windowDims.width, height: windowDims.height)
             }
         }
         .onReceive(keysPublisher) { keys in
             if let cb = consoleBus {
-                // 0x2 is the read "port" of the console bus buffer, where TEma reads new console data from.
-                cb.buffer[0x2] = UInt8(Array(keys.utf8)[0])
-                // MARK: exec this on a serial queue to avoid concurrency issues.
-                tema.cpu.interruptEnable(bus: cb)
+                irQ.async {
+                    // 0x2 is the read "port" of the console bus buffer, where TEma reads new console data from.
+                    cb.buffer[0x2] = UInt8(Array(keys.utf8)[0])
+                    // MARK: exec this on a serial queue to avoid concurrency issues.
+
+                    tema.cpu.interruptEnable(bus: cb)
+                }
             }
         }
 //            .overlay(EmptyView().trackingMouse { event in handleMouseEvents(event: event) })
@@ -268,16 +278,20 @@ struct ContentView: View {
     func handleMouseEvents(event: NSEvent) {
                 
         if let mb = mouseBus {
+            
             func mouseMoved(position: NSPoint) {
                 let sx = Int(position.x * viewScale)
                 let sy = Int(position.y * viewScale)
-                
+//                print("mouse coords \(sx) \(sy)")
                 let x = min(max(0, sx), ppuWidth-1)
                 let y = min(max(0, ppuHeight-sy), ppuHeight-1)
                 
-                // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
-                write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
-                write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
+                irQ.async {
+                    // ports 0x2 and 0x4 represent the x and y of the TEma mouse interface.
+                    write16(mem: &mb.buffer, value: UInt16(x), address: 0x2)
+                    write16(mem: &mb.buffer, value: UInt16(y), address: 0x4)
+                    tema.cpu.interruptEnable(bus: mb)
+                }
             }
 
             switch event.type {
@@ -301,7 +315,9 @@ struct ContentView: View {
                 print("mouse did summink. dunno?!")
             }
 //            print("the event was \(event.description)")
-            tema.cpu.interruptEnable(bus: mb)
+            
+//            tema.cpu.interruptEnable(bus: mb)
+            
         }
     }
 }

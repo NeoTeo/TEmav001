@@ -46,11 +46,12 @@ class System {
     }
     
     func loadRam(destAddr: UInt16, ram: [UInt8]) throws {
-        
-        guard ram.count+Int(destAddr) <= mmu.bank.count else { throw SystemError.memoryLoading }
+        guard ram.count+Int(destAddr) <= MMU.byteSize else { throw SystemError.memoryLoading }
+//        guard ram.count+Int(destAddr) <= mmu.bank.count else { throw SystemError.memoryLoading }
         /// Would be faster with pointer juggling
         for idx in 0 ..< ram.count {
-            mmu.bank[Int(destAddr)+idx] = ram[idx]
+//            mmu.bank[Int(destAddr)+idx] = ram[idx]
+            mmu.write(value: ram[idx], address: destAddr+UInt16(idx))
         }
     }
     
@@ -209,6 +210,12 @@ class Stack {
         let a = try popCopy8() ; let b = try popCopy8()
         return (UInt16(b) << 8) | UInt16(a)
     }
+    
+    func debugPrint() {
+        print("[ ", terminator: "")
+        for idx in 0..<count { print("0x\(String(format:"%02X", data[idx])) ", terminator: "") }
+        print("]")
+    }
 }
 
 /// Central Processing Unit
@@ -362,6 +369,14 @@ class CPU {
     
     var dbgTickCount = 0
     
+    func debugDump() {
+        print("PC: 0x\(String(format:"%02X", pc))")
+        print("pStack:", terminator: "")
+        pStack.debugPrint()
+        print("rStack:", terminator: "")
+        rStack.debugPrint()
+    }
+    
     func clockTick() throws {
         
         // service interrupt requests
@@ -404,14 +419,22 @@ class CPU {
 //        if dbgTickCount == 195 {
 //            print("stop")
 //        }
-//        if pc == 0x01B2 { //0x0310 {
-//            print("break")
+//        if pc == 0x04f0 {
+//            print("break1")
+////            print("pStack count: \(pStack.count), copyidx: \(pStack.copyIdx) ")
+//            debugDump()
 //        }
+//        if pc == 0x0447 || pc == 0x0465 { //0x03d4 { //0x0310 {
+//            print("break2")
+//            print("pStack count: \(pStack.count), copyidx: \(pStack.copyIdx) ")
+//        }
+
         //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
         if op == nil { fatalError("op is nil") }
         do {
         switch op {
         case .brk:
+            debugDump()
             pc =  0
             
         case .nop:
@@ -647,9 +670,9 @@ class CPU {
             // MARK: is this pc right?
             
         case .pop16:
-//            _ = try pop16(sourceStack)
-            let val = try pop16(sourceStack)
-            print("popped short value \(String(describing: val))")
+            _ = try pop16(sourceStack)
+//            let val = try pop16(sourceStack)
+//            print("popped short value \(String(describing: val))")
             pc += 1
 
         case .dup16:
@@ -862,13 +885,19 @@ class CPU {
 
 /// Memory Management Unit
 class MMU {
+    static let byteSize = 65536
+    let ramQ = DispatchQueue.global(qos: .userInitiated)
+//    let ramQ = DispatchQueue(label: "thread-safe-obj", attributes: .concurrent)
+
     /// 65536 bytes of memory
-    var bank = [UInt8](repeating: 0, count: 65536)
+   private var bank = [UInt8](repeating: 0, count: byteSize)
     
+    /*
     func debugInit() {
         
         func opwrite(value: CPU.OpCode, address: UInt16) -> UInt16{
             bank[Int(address)] = value.rawValue
+            
             return address + 1
         }
         
@@ -1085,7 +1114,7 @@ class MMU {
 //        testReadWrite8()
         testBus()
     }
-
+     */
     func clear() {
         bank = [UInt8](repeating: 0, count: 65536)
     }
@@ -1096,15 +1125,22 @@ class MMU {
     }
     
     func write(value: UInt8, address: UInt16) {
-        bank[Int(address)] = value
+        // MARK: Occasional crash here when i don't use the ramQ.sync but speed is 2x
+//        ramQ.sync(flags: .barrier) {
+            self.bank[Int(address)] = value
+//        }
     }
 
     func read16(address: UInt16) -> UInt16 {
-        return (UInt16(bank[Int(address)]) << 8) | UInt16(bank[Int(address+1)])
+//        return (UInt16(bank[Int(address)]) << 8) | UInt16(bank[Int(address+1)])
+        return (UInt16(read(address: address)) << 8) | UInt16(read(address: address+1))
     }
 
     func read(address: UInt16) -> UInt8 {
-        return bank[Int(address)]
+//        ramQ.sync {
+            return bank[Int(address)]
+//        }
+//        return bank[Int(address)]
     }
 }
 
@@ -1114,6 +1150,7 @@ func write16(mem: inout [UInt8], value: UInt16, address: UInt16) {
 }
 
 func write(mem: inout [UInt8], value: UInt8, address: UInt16) {
+    
     mem[Int(address)] = value
 }
 
