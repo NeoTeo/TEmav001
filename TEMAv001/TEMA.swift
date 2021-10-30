@@ -175,7 +175,19 @@ class Stack {
     private var data = [UInt8](repeating: 0, count: stBytes)
     var count = 0
     var copyIdx = 0
-
+    /*
+    var copyIdxBak: Int?  // backup of copyIdx when interrupt handler runs
+    private var _irqMode: Bool = false
+    var irqMode: Bool {
+        set {
+            _irqMode = newValue
+            if _irqMode == true { copyIdxBak = copyIdx ; copyIdx = count }
+            else { copyIdx = copyIdxBak! ; copyIdxBak = nil }
+        }
+        get { _irqMode }
+    }
+    */
+    
     func push8(_ val: UInt8) throws {
         guard count < Stack.stBytes else { throw StackError.overflow }
         data[count] = val
@@ -357,6 +369,7 @@ class CPU {
     var interruptFlags: UInt8 = 0
     
     // caller must ensure these are not called concurrently. Perhaps not use interrupts next time?
+    // Uses irQ for syncronization.
     func interruptEnable(bus: Bus) {
         let IME = sys.mmu.read(address: interruptMasterEnable)
         guard IME == 1 else { return }
@@ -384,6 +397,9 @@ class CPU {
             let IME = sys.mmu.read(address: interruptMasterEnable)
             guard IME == 0 else { return }
             
+//            pStack.irqMode = true
+//            rStack.irqMode = true
+            
             guard let bus = sys.bus[Int(interruptFlags & 0xFF)] else { throw CPUError.invalidInterrrupt }
             interruptFlags = 0
             
@@ -391,8 +407,11 @@ class CPU {
             let intvec = read16(mem: &bus.buffer, address: 0)
             pc = intvec
         }
-        
+                
         guard pc > 0 else { throw CPUError.pcBrk }
+        
+//        if pStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 { pStack.irqMode = false }
+//        if rStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 { rStack.irqMode = false }
         
         /// since we're limiting the number of opcodes to 32 we are only using the bottom 5 bits.
         /// We can use the top three as flags for byte or short ops, copy rather than pop, and return from jump.
@@ -400,6 +419,11 @@ class CPU {
         /// for both byte and shorts, the bottom 6 with ^ 0x3F
         let memval = sys.mmu.read(address: pc)
 
+        // When the copy flag is set a pop operation will keep a copy of the byte or short that is popped.
+        // Subsequent pop operations with the copy flag set will get the next value down in the stack until any non-copy operation is called.
+        // Eg. if the stack contains [ a b c ] then a copy pop will return c and leave the stack as [ a b c ].
+        // If the following operation is also a copy pop it will return b and leave the stack as [ a b c ].
+        // A non copy operation will reset the copy index and any new copy pop will start from the top of the stack again.
         let copyFlag = (memval & 0x40 != 0)
         /// This is trying to deal with the case where a copy flag persists between non-copy calls. Is it ok that both p and r stacks are reset when either is used without the copy flag?
         if copyFlag == false { rStack.copyIdx = rStack.count ; pStack.copyIdx = pStack.count } // MARK: not sure this is 100%
@@ -1125,7 +1149,7 @@ class MMU {
     }
     
     func write(value: UInt8, address: UInt16) {
-        // MARK: Occasional crash here when i don't use the ramQ.sync but speed is 2x
+        // MARK: Occasional crash here when i don't use the ramQ.sync but speed is 2x. Fix!
 //        ramQ.sync(flags: .barrier) {
             self.bank[Int(address)] = value
 //        }
