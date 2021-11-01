@@ -175,7 +175,7 @@ class Stack {
     private var data = [UInt8](repeating: 0, count: stBytes)
     var count = 0
     var copyIdx = 0
-    /*
+/*
     var copyIdxBak: Int?  // backup of copyIdx when interrupt handler runs
     private var _irqMode: Bool = false
     var irqMode: Bool {
@@ -399,6 +399,11 @@ class CPU {
             
 //            pStack.irqMode = true
 //            rStack.irqMode = true
+//
+//            print("interrupt enabled stack irq mode at ", terminator: "")
+//            print("PC: 0x\(String(format:"%02X", pc))")
+//            print("The pStack.count is \(pStack.count) and pStack.copyIdx is \(pStack.copyIdx) and pStack.copyIdxBak is \(pStack.copyIdxBak)")
+//            print("The rStack.count is \(rStack.count) and rStack.copyIdx is \(rStack.copyIdx) and rStack.copyIdxBak is \(rStack.copyIdxBak)")
             
             guard let bus = sys.bus[Int(interruptFlags & 0xFF)] else { throw CPUError.invalidInterrrupt }
             interruptFlags = 0
@@ -410,8 +415,20 @@ class CPU {
                 
         guard pc > 0 else { throw CPUError.pcBrk }
         
-//        if pStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 { pStack.irqMode = false }
-//        if rStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 { rStack.irqMode = false }
+//        // Restoring here is too soon as there are still the jmpSR operation inside the interrupt handler to do, which will
+//        // reset the restored copyIdx before the next stsSRC operation that uses it.
+//        if pStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 {
+//            pStack.irqMode = false
+//            print("interrupt DISABLED pStack irq mode at ", terminator: "")
+//            print("PC: 0x\(String(format:"%02X", pc))")
+//            print("The pStack.count is \(pStack.count) and pStack.copyIdx is \(pStack.copyIdx) and pStack.copyIdxBak is \(pStack.copyIdxBak)")
+//        }
+//        if rStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 {
+//            rStack.irqMode = false
+//            print("interrupt DISABLED rStack irq mode at ", terminator: "")
+//            print("PC: 0x\(String(format:"%02X", pc))")
+//            print("The rStack.count is \(rStack.count) and rStack.copyIdx is \(rStack.copyIdx) and rStack.copyIdxBak is \(rStack.copyIdxBak)")
+//        }
         
         /// since we're limiting the number of opcodes to 32 we are only using the bottom 5 bits.
         /// We can use the top three as flags for byte or short ops, copy rather than pop, and return from jump.
@@ -420,15 +437,10 @@ class CPU {
         let memval = sys.mmu.read(address: pc)
 
         // When the copy flag is set a pop operation will keep a copy of the byte or short that is popped.
-        // Subsequent pop operations with the copy flag set will get the next value down in the stack until any non-copy operation is called.
-        // Eg. if the stack contains [ a b c ] then a copy pop will return c and leave the stack as [ a b c ].
-        // If the following operation is also a copy pop it will return b and leave the stack as [ a b c ].
-        // A non copy operation will reset the copy index and any new copy pop will start from the top of the stack again.
+        // Subsequent copy operations all return the last element (or two if the short flag is used as well) of the stack.
         let copyFlag = (memval & 0x40 != 0)
-        /// This is trying to deal with the case where a copy flag persists between non-copy calls. Is it ok that both p and r stacks are reset when either is used without the copy flag?
-        if copyFlag == false { rStack.copyIdx = rStack.count ; pStack.copyIdx = pStack.count } // MARK: not sure this is 100%
-        let pop8: ((Stack) throws -> UInt8) = copyFlag ? { stack in try stack.popCopy8() } : { stack in try stack.pop8() }
-        let pop16: ((Stack) throws -> UInt16) = copyFlag ? { stack in try stack.popCopy16() } : { stack in try stack.pop16() }
+        let pop8: ((Stack) throws -> UInt8) = copyFlag ? { stack in stack.copyIdx = stack.count ; return try stack.popCopy8() } : { stack in try stack.pop8() }
+        let pop16: ((Stack) throws -> UInt16) = copyFlag ? { stack in stack.copyIdx = stack.count ; return try stack.popCopy16() } : { stack in try stack.pop16() }
         
         /// The opcode byte layout:
         /// bytes 0, 1, 2, 3, 4 are opcode, 5 is byte or short flag, 6 is copy, 7 is stack swap
@@ -443,7 +455,7 @@ class CPU {
 //        if dbgTickCount == 195 {
 //            print("stop")
 //        }
-//        if pc == 0x04f0 {
+//        if pc == 0x0562 {
 //            print("break1")
 ////            print("pStack count: \(pStack.count), copyidx: \(pStack.copyIdx) ")
 //            debugDump()
