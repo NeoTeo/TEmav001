@@ -396,15 +396,7 @@ class CPU {
         if interruptFlags != 0 {
             let IME = sys.mmu.read(address: interruptMasterEnable)
             guard IME == 0 else { return }
-            
-//            pStack.irqMode = true
-//            rStack.irqMode = true
-//
-//            print("interrupt enabled stack irq mode at ", terminator: "")
-//            print("PC: 0x\(String(format:"%02X", pc))")
-//            print("The pStack.count is \(pStack.count) and pStack.copyIdx is \(pStack.copyIdx) and pStack.copyIdxBak is \(pStack.copyIdxBak)")
-//            print("The rStack.count is \(rStack.count) and rStack.copyIdx is \(rStack.copyIdx) and rStack.copyIdxBak is \(rStack.copyIdxBak)")
-            
+                        
             guard let bus = sys.bus[Int(interruptFlags & 0xFF)] else { throw CPUError.invalidInterrrupt }
             interruptFlags = 0
             
@@ -414,22 +406,7 @@ class CPU {
         }
                 
         guard pc > 0 else { throw CPUError.pcBrk }
-        
-//        // Restoring here is too soon as there are still the jmpSR operation inside the interrupt handler to do, which will
-//        // reset the restored copyIdx before the next stsSRC operation that uses it.
-//        if pStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 {
-//            pStack.irqMode = false
-//            print("interrupt DISABLED pStack irq mode at ", terminator: "")
-//            print("PC: 0x\(String(format:"%02X", pc))")
-//            print("The pStack.count is \(pStack.count) and pStack.copyIdx is \(pStack.copyIdx) and pStack.copyIdxBak is \(pStack.copyIdxBak)")
-//        }
-//        if rStack.irqMode == true && sys.mmu.read(address: interruptMasterEnable) != 0 {
-//            rStack.irqMode = false
-//            print("interrupt DISABLED rStack irq mode at ", terminator: "")
-//            print("PC: 0x\(String(format:"%02X", pc))")
-//            print("The rStack.count is \(rStack.count) and rStack.copyIdx is \(rStack.copyIdx) and rStack.copyIdxBak is \(rStack.copyIdxBak)")
-//        }
-        
+                
         /// since we're limiting the number of opcodes to 32 we are only using the bottom 5 bits.
         /// We can use the top three as flags for byte or short ops, copy rather than pop, and return from jump.
         /// This is where we would mask out the bottom 5 with an & 0x1F or, if we've made opcodes
@@ -441,7 +418,9 @@ class CPU {
         let copyFlag = (memval & 0x40 != 0)
         let pop8: ((Stack) throws -> UInt8) = copyFlag ? { stack in stack.copyIdx = stack.count ; return try stack.popCopy8() } : { stack in try stack.pop8() }
         let pop16: ((Stack) throws -> UInt16) = copyFlag ? { stack in stack.copyIdx = stack.count ; return try stack.popCopy16() } : { stack in try stack.pop16() }
-        
+        let shortFlag = (memval & 0x20 != 0)
+        let pop: ((Stack) throws -> UInt16) = shortFlag ? { stack in try pop16(stack) } : { stack in try UInt16(pop8(stack)) }
+        let push: ((Stack, UInt16) throws -> Void) = shortFlag ? { stack, val in try stack.push16(val) } : { stack, val in try stack.push8(UInt8(val & 0xFF)) }
         /// The opcode byte layout:
         /// bytes 0, 1, 2, 3, 4 are opcode, 5 is byte or short flag, 6 is copy, 7 is stack swap
         /// If the stack swap flag is set, swap source and destination stacks
@@ -455,14 +434,10 @@ class CPU {
 //        if dbgTickCount == 195 {
 //            print("stop")
 //        }
-//        if pc == 0x0562 {
+//        if pc == 0x0100 {
 //            print("break1")
 ////            print("pStack count: \(pStack.count), copyidx: \(pStack.copyIdx) ")
 //            debugDump()
-//        }
-//        if pc == 0x0447 || pc == 0x0465 { //0x03d4 { //0x0310 {
-//            print("break2")
-//            print("pStack count: \(pStack.count), copyidx: \(pStack.copyIdx) ")
 //        }
 
         //print("clockTick \(dbgTickCount): read opcode: \(String(describing: op)) at pc \(pc)")
@@ -485,110 +460,109 @@ class CPU {
             try sourceStack.push8(lit)
             pc += 1
             
-        case .pop:
-
-            _ = try pop8(sourceStack)
+        case .pop, .pop16:
+            _ = try pop(sourceStack)
+//            _ = try pop8(sourceStack)
 //            let val = try pop8(sourceStack)
 //            print("popped value \(String(describing: val))")
             pc += 1
 
-        case .dup:
-            let val = try pop8(sourceStack)
-            try sourceStack.push8(val)
-            try sourceStack.push8(val)
+        case .dup, .dup16:
+            let val = try pop(sourceStack)
+            try push(sourceStack, val)
+            try push(sourceStack, val)
             pc += 1
             
-        case .ovr: // ( b a -- b a b )
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .ovr, .ovr16: // ( b a -- b a b )
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8(b)
-            try sourceStack.push8(a)
-            try sourceStack.push8(b)
+            try push(sourceStack, b)
+            try push(sourceStack, a)
+            try push(sourceStack, b)
             
             pc += 1
             
-        case .rot: // ( c b a -- b a c )
+        case .rot, .rot16: // ( c b a -- b a c )
             
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
-            let c = try pop8(sourceStack)
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
+            let c = try pop(sourceStack)
 
-            try sourceStack.push8(b)
-            try sourceStack.push8(a)
-            try sourceStack.push8(c)
+            try push(sourceStack, b)
+            try push(sourceStack, a)
+            try push(sourceStack, c)
 
             pc += 1
             
-        case .swp:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .swp, .swp16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8(a)
-            try sourceStack.push8(b)
+            try push(sourceStack, a)
+            try push(sourceStack, b)
             
             pc += 1
 
-        case .sts:  // stack to stack transfer
-            let a  = try pop8(sourceStack)
-            try targetStack.push8(a)
-            
+        case .sts, .sts16:  // stack to stack transfer
+            let a  = try pop(sourceStack)
+            try push(targetStack, a)
             pc += 1
 
         /// arithmetic operations
-        case .add:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .add, .add16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8( b &+ a )
+            try push(sourceStack, b &+ a )
             
             pc += 1
             
-        case .sub:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .sub, .sub16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8( b &- a )
+            try push(sourceStack, b &- a )
             
             pc += 1
             
-        case .mul:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .mul, .mul16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8( b &* a )
+            try push(sourceStack, b &* a )
 
             pc += 1
             
-        case .div:
+        case .div, .div16:
 
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8( b / a )
+            try push(sourceStack, b / a )
             
             pc += 1
             
         /// bitwise logic
-        case .and:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .and, .and16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8( b & a )
+            try push(sourceStack, b & a )
             pc += 1
 
-        case .ior:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .ior, .ior16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8( b | a )
+            try push(sourceStack, b | a )
             pc += 1
             
-        case .xor:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .xor, .xor16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
-            try sourceStack.push8( b ^ a )
+            try push(sourceStack, b ^ a )
             pc += 1
             
         case .shi: // ( value bitshift -- result )
@@ -600,31 +574,31 @@ class CPU {
             pc += 1
             
         /// logic operations
-        case .equ:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .equ, .equ16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
             try sourceStack.push8( b == a ? 0xFF : 0 )
             pc += 1
 
-        case .neq:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .neq, .neq16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
             try sourceStack.push8( b != a ? 0xFF : 0 )
             pc += 1
 
-        case .grt:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .grt, .grt16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
             try sourceStack.push8( b > a ? 0xFF : 0 )
             
             pc += 1
 
-        case .lst:
-            let a = try pop8(sourceStack)
-            let b = try pop8(sourceStack)
+        case .lst, .lst16:
+            let a = try pop(sourceStack)
+            let b = try pop(sourceStack)
 
             try sourceStack.push8( b < a ? 0xFF : 0 )
             
@@ -699,12 +673,13 @@ class CPU {
         // MARK: Implement short operations below.
         case .lit16:
             /// next value in memory assumed to be the value to push to pstack
+            /// lit16 consists of an opcode byte followed by two bytes of data = 3 bytes total
             pc += 1
             let lit = sys.mmu.read16(address: pc)
+            pc += 2 // advance pc by the two bytes just read.
             try sourceStack.push16(lit)
-            pc += 2
-            // MARK: is this pc right?
             
+            /*
         case .pop16:
             _ = try pop16(sourceStack)
 //            let val = try pop16(sourceStack)
@@ -714,7 +689,7 @@ class CPU {
         case .dup16:
             try sourceStack.push16(try sourceStack.popCopy16())
             pc += 1
-            
+             
         case .ovr16:
 
             let a = try pop16(sourceStack)
@@ -725,7 +700,7 @@ class CPU {
             try sourceStack.push16(b)
             
             pc += 1
-            
+             
         case .rot16:
             
             let a = try pop16(sourceStack)
@@ -737,7 +712,7 @@ class CPU {
             try sourceStack.push16(c)
 
             pc += 1
-            
+             
         case .swp16:
             let a = try pop16(sourceStack)
             let b = try pop16(sourceStack)
@@ -746,13 +721,13 @@ class CPU {
             try sourceStack.push16(b)
             
             pc += 1
-            
+             
         case .sts16: // stack to stack transfer
             let a = try pop16(sourceStack)
             try targetStack.push16(a)
             
             pc += 1
-
+             
 
         /// arithmetic operations
         case .add16:
@@ -762,7 +737,7 @@ class CPU {
             try sourceStack.push16(b &+ a)
             
             pc += 1
-            
+             
         case .sub16:
             let a = try pop16(sourceStack)
             let b = try pop16(sourceStack)
@@ -770,7 +745,7 @@ class CPU {
             try sourceStack.push16( b &- a )
             
             pc += 1
-            
+             
         case .mul16:
             let a = try pop16(sourceStack)
             let b = try pop16(sourceStack)
@@ -787,28 +762,28 @@ class CPU {
             try sourceStack.push16( b / a )
             
             pc += 1
-
+             
         case .and16:
             let a = try pop16(sourceStack)
             let b = try pop16(sourceStack)
 
             try sourceStack.push16( b & a )
             pc += 1
-            
+             
         case .ior16:
             let a = try pop16(sourceStack)
             let b = try pop16(sourceStack)
 
             try sourceStack.push16( b | a )
             pc += 1
-            
+             
         case .xor16:
             let a = try pop16(sourceStack)
             let b = try pop16(sourceStack)
 
             try sourceStack.push16( b ^ a )
             pc += 1
-            
+             */
         case .shi16: // ( value bitshift -- result )
             let a = try pop8(sourceStack)
             let b = try pop16(sourceStack)
@@ -817,6 +792,7 @@ class CPU {
             try sourceStack.push16((b >> (a & 0x0f)) << ((a & 0xf0) >> 4))
             pc += 1
             
+        /*
         /// logic operations
         case .equ16:
             let a = try pop16(sourceStack)
@@ -824,7 +800,7 @@ class CPU {
 
             try sourceStack.push8( b == a ? 0xFF : 0 )
             pc += 1
-
+         
         case .neq16:
             let a = try pop16(sourceStack)
             let b = try pop16(sourceStack)
@@ -847,7 +823,7 @@ class CPU {
             try sourceStack.push8( b < a ? 0xFF : 0 )
             
             pc += 1
-
+         */
 //        case .neg16:
 //            let a = try sourceStack.pop16()
 //            try sourceStack.push8( a == 0 ? 0xFF : 0 )
@@ -1161,7 +1137,7 @@ class MMU {
     }
     
     func write(value: UInt8, address: UInt16) {
-        // MARK: Occasional crash here when i don't use the ramQ.sync but speed is 2x. Fix!
+        // MARK: Occasional crash here when i don't use the ramQ.sync. Grok & fix!
 //        ramQ.sync(flags: .barrier) {
             self.bank[Int(address)] = value
 //        }
